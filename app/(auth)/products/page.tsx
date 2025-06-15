@@ -108,10 +108,10 @@ export default function ProductsPage() {
     try {
       if (editing && editing.id) {
         // Edit
-        await updateDoc(doc(db, "products_master", editing.id), form);
+        await updateDoc(doc(db, "products_master", editing.id), form as any);
       } else {
         // Add
-        await addDoc(collection(db, "products_master"), form);
+        await addDoc(collection(db, "products_master"), form as any);
       }
       await fetchProducts();
       closeModal();
