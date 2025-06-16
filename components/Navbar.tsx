@@ -27,6 +27,7 @@ export default function Navbar() {
   const vendorLinks = [
     { name: "Dashboard", href: "/dashboard" },
     { name: "Stocks", href: "/stocks" },
+    { name: "POS", href: "/pos" },
     { name: "Audit", href: "/audit" },
   ];
   const navLinks = role === 'vendor' ? vendorLinks : adminLinks;

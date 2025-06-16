@@ -85,15 +85,25 @@ service cloud.firestore {
       allow read, write: if isAuthorizedSuperAdmin();
     }
 
-    // Vendor stocks - vendor can read/write their own, super admin can read/write all
-    match /vendor_stocks/{stockId} {
-      allow read: if isAuthorizedSuperAdmin() || (request.auth != null && resource.data.vendorId == request.auth.uid);
-      allow write: if isAuthorizedSuperAdmin() || (request.auth != null && request.resource.data.vendorId == request.auth.uid);
+    // Vendor stocks: Only the vendor who owns the stock can read/write
+    match /vendor_stocks/{docId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.vendorId;
     }
 
-    // Fallback - super admin can read/write anything
+    // Sales: Only the vendor who made the sale can read/write
+    match /sales/{docId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.vendorId;
+    }
+
+    // Customer details: Only the vendor who owns the customer can read/write
+    match /customer_details/{docId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.vendorId;
+      allow write: if request.auth != null && request.auth.uid == request.resource.data.vendorId;
+    }
+
+    // Deny all other access by default
     match /{document=**} {
-      allow read, write: if isAuthorizedSuperAdmin();
+      allow read, write: if false;
     }
   }
 } 
