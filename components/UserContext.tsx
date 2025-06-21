@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
 interface UserContextType {
@@ -34,29 +34,35 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       setVendor(null);
       setBusinessName(null);
       setRole(null);
-      setLoading(true);
+      setLoading(true); // Start loading
+
       if (firebaseUser) {
-        // Only query Firestore if user is authenticated
         try {
-          const q = query(collection(db, 'vendor_accounts'), where('email', '==', firebaseUser.email));
-          const snap = await getDocs(q);
-          console.log('UserContext: vendor_accounts query result', snap.docs.map(d => d.data()));
-          if (!snap.empty) {
-            const vendorDoc = snap.docs[0].data();
+          const vendorRef = doc(db, 'vendor_accounts', firebaseUser.uid);
+          const snap = await getDoc(vendorRef);
+          
+          if (snap.exists()) {
+            const vendorDoc = snap.data();
             setVendor(vendorDoc);
             setBusinessName(vendorDoc.businessName || vendorDoc.name || null);
             setRole(vendorDoc.vendorCode ? 'vendor' : 'admin');
             console.log('UserContext: detected role', vendorDoc.vendorCode ? 'vendor' : 'admin');
           } else {
-            setRole('admin');
-            console.log('UserContext: detected role', 'admin');
+            // If no vendor doc, they might be another type of user or it's an error.
+            // For now, assume they are not a vendor.
+            setRole('admin'); 
+            console.log('UserContext: No vendor document found, assuming admin role.');
           }
         } catch (err) {
           console.error('UserContext: Firestore error', err);
-          setRole(null);
+          setRole(null); // Set role to null on error
+        } finally {
+          setLoading(false); // Stop loading after async operation is complete
         }
+      } else {
+        // No user is logged in
+        setLoading(false); // Stop loading
       }
-      setLoading(false);
     });
     return () => unsubscribe();
   }, []);

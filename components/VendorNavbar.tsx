@@ -4,22 +4,56 @@ import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useUser } from "@/components/useUser";
-import { useState } from "react";
-
-const navLinks = [
-  { name: "Dashboard", href: "/dashboard" },
-  { name: "Stocks", href: "/stocks" },
-  { name: "Analytics", href: "/analytics" },
-  { name: "Notifications", href: "/notifications" },
-  { name: "Billing", href: "/billing" },
-  { name: "Orders", href: "/orders" },
-];
+import { useState, useEffect } from "react";
+import { db } from "@/lib/firebase";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
 
 export default function VendorNavbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { businessName, vendor, loading } = useUser();
+  const { businessName, vendor, loading, user } = useUser();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Fetch unread notifications count
+  useEffect(() => {
+    if (user) {
+      const q = query(
+        collection(db, 'notifications'), 
+        where('recipientType', '==', 'vendor'),
+        where('recipientId', '==', user.uid), 
+        where('read', '==', false)
+      );
+      
+      const unsub = onSnapshot(q, (snap) => {
+        console.log('Unread notifications count:', snap.size);
+        setUnreadCount(snap.size);
+      }, (error) => {
+        console.error('Error listening to notifications:', error);
+      });
+      
+      return () => unsub();
+    }
+  }, [user]);
+
+  // Determine navLinks based on subscription plan
+  let navLinks = [
+    { name: "Dashboard", href: "/dashboard" },
+    { name: "Stocks", href: "/stocks" },
+    { name: "Notifications", href: "/notifications" },
+  ];
+  const plan = vendor?.subscription?.plan?.toLowerCase() || vendor?.subscriptionPlan?.toLowerCase() || 'basic';
+  if (plan === 'professional') {
+    navLinks = [
+      { name: "Dashboard", href: "/dashboard" },
+      { name: "POS", href: "/pos"},
+      { name: "Stocks", href: "/stocks" },
+      { name: "Analytics", href: "/analytics" },
+      { name: "Notifications", href: "/notifications" },
+      { name: "Billing", href: "/billing" },
+      { name: "Orders", href: "/orders" },
+    ];
+  }
 
   const handleSignOut = async () => {
     await signOut(auth);
@@ -61,6 +95,24 @@ export default function VendorNavbar() {
         </div>
         {/* Right: Business Name, VendorCode, Sign Out */}
         <div className="hidden sm:flex items-center gap-4 min-w-[180px] justify-end pr-2 lg:pr-0" style={{marginRight: '-8px'}}>
+          {/* Notification Bell */}
+          <div className="relative">
+            <button
+              onClick={() => router.push('/notifications')}
+              className="relative p-2 rounded-full hover:bg-neutral-100 text-neutral-700 transition-colors"
+              title="Notifications"
+              aria-label="Notifications"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a2.25 2.25 0 01-4.07 0M21 19.5a1.5 1.5 0 01-1.5-1.5V11a7.5 7.5 0 10-15 0v7a1.5 1.5 0 01-1.5 1.5h18z" />
+              </svg>
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[20px] h-5 flex items-center justify-center font-bold animate-pulse shadow-lg border-2 border-white">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+          </div>
           {businessName && (
             <div className="text-right mr-2">
               <div className="font-bold text-primary-700">{businessName}</div>
@@ -94,6 +146,23 @@ export default function VendorNavbar() {
                   {link.name}
                 </Link>
               ))}
+              {/* Notification Bell for Mobile Menu */}
+              <button
+                onClick={() => { setMobileMenuOpen(false); router.push('/notifications'); }}
+                className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium text-neutral-700 hover:text-primary-700 hover:bg-primary-50 transition-colors"
+              >
+                <div className="relative">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a2.25 2.25 0 01-4.07 0M21 19.5a1.5 1.5 0 01-1.5-1.5V11a7.5 7.5 0 10-15 0v7a1.5 1.5 0 01-1.5 1.5h18z" />
+                  </svg>
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] h-4 flex items-center justify-center font-bold animate-pulse shadow-lg border border-white">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </div>
+                Notifications {unreadCount > 0 && `(${unreadCount})`}
+              </button>
             </div>
             <div className="flex flex-col gap-2 border-t border-neutral-100 pt-2">
               {businessName && (

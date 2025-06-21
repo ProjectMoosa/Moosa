@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import Link from "next/link";
+import UpgradePrompt from '@/components/UpgradePrompt';
 
 export default function VendorDashboardPage() {
   const { businessName, user, vendor } = useUser();
@@ -18,6 +19,11 @@ export default function VendorDashboardPage() {
   const lowStockPageSize = 5;
   const totalLowStockPages = Math.ceil(lowStockList.length / lowStockPageSize);
   const paginatedLowStockList = lowStockList.slice((lowStockPage - 1) * lowStockPageSize, lowStockPage * lowStockPageSize);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [fabOpen, setFabOpen] = useState(false);
+
+  const plan = vendor?.subscription?.plan?.toLowerCase() || vendor?.subscriptionPlan?.toLowerCase() || 'basic';
+  const isBasic = plan === 'basic';
 
   useEffect(() => {
     if (!user) return;
@@ -82,6 +88,37 @@ export default function VendorDashboardPage() {
           <div className="text-xl font-bold text-primary-700">{vendor?.subscription?.plan ? `${vendor.subscription.plan} (${vendor.subscription.status || 'Active'})` : 'N/A'}</div>
         </div>
       </div>
+      {/* Subscription Plan Card */}
+      <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-6 mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-neutral-900 mb-1">Subscription Plan</h3>
+            <p className="text-neutral-600 text-sm">
+              Current plan: <span className="font-semibold text-primary-700 capitalize">{plan}</span>
+            </p>
+          </div>
+          {isBasic && (
+            <button
+              onClick={() => setShowUpgradePrompt(true)}
+              className="bg-primary-700 hover:bg-primary-800 text-white font-medium px-5 py-2 rounded-md text-sm shadow-sm transition-colors"
+            >
+              Upgrade to Professional
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <ul className="space-y-1 text-sm">
+            <li className="flex items-center gap-2"><span className="text-green-600">✓</span> Dashboard & Overview</li>
+            <li className="flex items-center gap-2"><span className="text-green-600">✓</span> Notifications</li>
+            <li className="flex items-center gap-2"><span className="text-green-600">✓</span> Stock Management</li>
+          </ul>
+          <ul className="space-y-1 text-sm">
+            <li className={`flex items-center gap-2 ${isBasic ? 'text-neutral-400' : ''}`}><span className={isBasic ? 'text-red-400' : 'text-green-600'}>{isBasic ? '✗' : '✓'}</span> Analytics{isBasic ? ' (Professional)' : ''}</li>
+            <li className={`flex items-center gap-2 ${isBasic ? 'text-neutral-400' : ''}`}><span className={isBasic ? 'text-red-400' : 'text-green-600'}>{isBasic ? '✗' : '✓'}</span> Billing{isBasic ? ' (Professional)' : ''}</li>
+            <li className={`flex items-center gap-2 ${isBasic ? 'text-neutral-400' : ''}`}><span className={isBasic ? 'text-red-400' : 'text-green-600'}>{isBasic ? '✗' : '✓'}</span> Orders{isBasic ? ' (Professional)' : ''}</li>
+          </ul>
+        </div>
+      </div>
       {/* Charts Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8 items-stretch min-h-[260px]">
         <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-4 sm:p-6 flex flex-col items-center justify-center min-h-[200px] sm:min-h-[260px] h-full">
@@ -128,6 +165,50 @@ export default function VendorDashboardPage() {
           )}
         </div>
       </div>
+      {/* Floating Action Button */}
+      <div className="fixed bottom-8 right-6 z-50 flex flex-col items-end">
+        {/* Overlay */}
+        {fabOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black bg-opacity-20"
+            onClick={() => setFabOpen(false)}
+          />
+        )}
+        {/* Menu */}
+        <div
+          className={`absolute bottom-16 right-0 transition-all duration-200 flex flex-col gap-2 ${fabOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none'}`}
+          style={{ zIndex: 60 }}
+        >
+          <button
+            onClick={() => { window.location.href = '/stocks?add=1'; setFabOpen(false); }}
+            className="bg-white border border-neutral-200 shadow-lg rounded-lg px-4 py-2 text-sm font-medium text-primary-700 hover:bg-primary-50 transition flex items-center gap-2 whitespace-nowrap"
+          >
+            <span className="text-lg">📦</span> Add Stock
+          </button>
+          <button
+            onClick={() => { window.location.href = '/pos'; setFabOpen(false); }}
+            className="bg-white border border-neutral-200 shadow-lg rounded-lg px-4 py-2 text-sm font-medium text-primary-700 hover:bg-primary-50 transition flex items-center gap-2 whitespace-nowrap"
+          >
+            <span className="text-lg">🧾</span> POS
+          </button>
+        </div>
+        {/* FAB */}
+        <button
+          className="w-12 h-12 rounded-full bg-primary-700 text-white shadow-xl flex items-center justify-center hover:bg-primary-600 hover:scale-110 active:scale-95 transition-all duration-150 z-50 border-4 border-white"
+          onClick={() => setFabOpen((v) => !v)}
+          aria-label="Add"
+          style={{ boxShadow: '0 4px 16px 0 rgba(60, 60, 60, 0.10)' }}
+        >
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-plus">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </button>
+      </div>
+      {/* Upgrade Prompt Modal */}
+      {showUpgradePrompt && (
+        <UpgradePrompt feature="all premium features" onClose={() => setShowUpgradePrompt(false)} />
+      )}
     </div>
   );
 } 

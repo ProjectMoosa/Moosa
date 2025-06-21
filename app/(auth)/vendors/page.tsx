@@ -231,6 +231,11 @@ export default function VendorsPage() {
       return;
     }
     try {
+      // Check if subscription plan has changed
+      const oldPlan = editVendor.subscription?.plan;
+      const newPlan = selectedPlan.name;
+      const subscriptionChanged = oldPlan !== newPlan;
+
       await updateDoc(doc(db, "vendor_accounts", editVendor.id), {
         ...form,
         subscription: {
@@ -242,6 +247,19 @@ export default function VendorsPage() {
         status: form.status || "Active",
         updatedAt: new Date(),
       });
+
+      // Create notification if subscription plan changed
+      if (subscriptionChanged) {
+        await addDoc(collection(db, "notifications"), {
+          recipientType: "vendor",
+          recipientId: editVendor.id,
+          type: "subscription_change",
+          message: `Your subscription plan has been changed from ${oldPlan || 'No Plan'} to ${newPlan}. New monthly fee: LKR ${selectedPlan.price.toLocaleString()}.`,
+          createdAt: Timestamp.now(),
+          read: false,
+        });
+      }
+
       await fetchVendors();
       setModalOpen(false);
       setEditVendor(null);
@@ -293,6 +311,17 @@ export default function VendorsPage() {
         status: newPayment.status,
         createdAt: Timestamp.now(),
       });
+
+      // Create notification for payment
+      await addDoc(collection(db, "notifications"), {
+        recipientType: "vendor",
+        recipientId: viewVendor.id,
+        type: "subscription_payment",
+        message: `Payment of LKR ${Number(newPayment.amount).toLocaleString()} has been recorded for ${newPayment.period || 'your subscription'}. Payment method: ${newPayment.method}.`,
+        createdAt: Timestamp.now(),
+        read: false,
+      });
+
       setNewPayment({ amount: "", date: "", notes: "", method: "Bank Transfer", period: "", status: "paid" });
       setShowAddPaymentModal(false);
       fetchPayments(viewVendor.vendorCode);

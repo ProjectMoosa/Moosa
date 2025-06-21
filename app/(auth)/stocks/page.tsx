@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, doc, updateDoc, addDoc, startAt, endAt, orderBy, limit, deleteDoc } from "firebase/firestore";
 import { useUser } from '@/components/useUser';
+import Container from '@/components/Container';
+import { Timestamp } from "firebase/firestore";
 
 interface VendorStock {
   id: string;
@@ -79,6 +81,12 @@ export default function VendorStocksPage() {
 
   const handleSave = async () => {
     if (!editStock) return;
+    
+    // Check if stock is going low
+    const wasLowStock = editStock.quantity < (editStock.lowStockThreshold || 5);
+    const isNowLowStock = form.quantity < (form.lowStockThreshold || 5);
+    const justWentLow = !wasLowStock && isNowLowStock;
+    
     await updateDoc(doc(db, 'vendor_stocks', editStock.id), {
       quantity: form.quantity,
       costPrice: form.costPrice,
@@ -86,6 +94,19 @@ export default function VendorStocksPage() {
       category: form.category,
       lowStockThreshold: form.lowStockThreshold,
     });
+    
+    // Create notification if stock just went low
+    if (justWentLow && user) {
+      await addDoc(collection(db, 'notifications'), {
+        recipientType: 'vendor',
+        recipientId: user.uid,
+        type: 'low_stock',
+        message: `Low stock alert: ${editStock.productName} is now below the threshold (${form.quantity}/${form.lowStockThreshold || 5} remaining).`,
+        createdAt: Timestamp.now(),
+        read: false,
+      });
+    }
+    
     setStocks(stocks.map(s => s.id === editStock.id ? { ...s, ...form } : s));
     setModalOpen(false);
     setEditStock(null);
@@ -108,10 +129,25 @@ export default function VendorStocksPage() {
 
   const handleAdd = async () => {
     if (!user) return;
+    
     const docRef = await addDoc(collection(db, 'vendor_stocks'), {
       ...addForm,
       vendorId: user.uid,
     });
+    
+    // Create notification if stock is low
+    const isLowStock = addForm.quantity < (addForm.lowStockThreshold || 5);
+    if (isLowStock) {
+      await addDoc(collection(db, 'notifications'), {
+        recipientType: 'vendor',
+        recipientId: user.uid,
+        type: 'low_stock',
+        message: `Low stock alert: ${addForm.productName} is below the threshold (${addForm.quantity}/${addForm.lowStockThreshold || 5} remaining).`,
+        createdAt: Timestamp.now(),
+        read: false,
+      });
+    }
+    
     setStocks([...stocks, { id: docRef.id, ...addForm }]);
     setAddModalOpen(false);
   };
@@ -217,204 +253,206 @@ export default function VendorStocksPage() {
   if (role !== 'vendor') return null;
 
   return (
-    <div className="max-w-6xl mx-auto px-2 sm:px-4 py-8 w-full">
-      <h1 className="text-2xl font-bold text-primary-700 mb-4">Stocks</h1>
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-4">
-        <input
-          type="text"
-          placeholder="Search by name or category..."
-          className="border border-neutral-200 rounded-md px-3 py-2 text-sm w-full sm:w-64"
-          value={search}
-          onChange={e => { setSearch(e.target.value); setPage(1); }}
-        />
-        <select
-          className="border border-neutral-200 rounded-md px-3 py-2 text-sm w-full sm:w-48"
-          value={filterCategory}
-          onChange={e => { setFilterCategory(e.target.value); setPage(1); }}
-        >
-          <option value="">All Categories</option>
-          {COSMETIC_CATEGORIES.map(cat => (
-            <option key={cat} value={cat}>{cat}</option>
-          ))}
-        </select>
-        <select
-          className="border border-neutral-200 rounded-md px-3 py-2 text-sm w-full sm:w-40"
-          value={filterStatus}
-          onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
-        >
-          <option value="">All Statuses</option>
-          <option value="in">In Stock</option>
-          <option value="low">Low Stock</option>
-          <option value="out">Out of Stock</option>
-        </select>
-        <button className="bg-primary-700 hover:bg-primary-800 text-white font-medium px-4 py-2 rounded-md text-sm shadow-sm transition-colors w-full sm:w-auto" onClick={openAddModal}>
-          + Add Product
-        </button>
-      </div>
-      <div className="bg-white rounded-xl border border-neutral-100 shadow-sm overflow-x-auto w-full">
-        <table className="min-w-full text-sm w-full">
-          <thead>
-            <tr className="text-neutral-500 text-xs uppercase">
-              <th className="px-4 py-3 text-left cursor-pointer" onClick={() => { setSortBy('productName'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>Product Name</th>
-              <th className="px-4 py-3 text-left cursor-pointer" onClick={() => { setSortBy('category'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>Category</th>
-              <th className="px-4 py-3 text-left cursor-pointer" onClick={() => { setSortBy('quantity'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>Quantity</th>
-              <th className="px-4 py-3 text-left cursor-pointer" onClick={() => { setSortBy('costPrice'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>Cost Price</th>
-              <th className="px-4 py-3 text-left cursor-pointer" onClick={() => { setSortBy('sellingPrice'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>Selling Price</th>
-              <th className="px-4 py-3 text-left cursor-pointer" onClick={() => { setSortBy('profitMargin'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>Profit Margin</th>
-              <th className="px-4 py-3 text-left">Status</th>
-              <th className="px-4 py-3 text-left">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginatedStocks.length === 0 ? (
-              <tr><td colSpan={8} className="text-center py-8 text-neutral-400">No products found.</td></tr>
-            ) : (
-              paginatedStocks.map((stock) => {
-                const profitMargin = stock.costPrice ? (((stock.sellingPrice - stock.costPrice) / stock.costPrice) * 100).toFixed(1) : '0';
-                const isLowStock = stock.quantity < (stock.lowStockThreshold || 5) && stock.quantity > 0;
-                const isOutOfStock = stock.quantity === 0;
-                return (
-                  <tr key={stock.id} className={`border-t border-neutral-100 ${isOutOfStock ? 'bg-red-50' : isLowStock ? 'bg-yellow-50' : ''}`}>
-                    <td className="px-4 py-3 font-medium text-neutral-900">{stock.productName}</td>
-                    <td className="px-4 py-3">{stock.category || '-'}</td>
-                    <td className="px-4 py-3">{stock.quantity}</td>
-                    <td className="px-4 py-3">LKR {stock.costPrice}</td>
-                    <td className="px-4 py-3">LKR {stock.sellingPrice}</td>
-                    <td className="px-4 py-3">{profitMargin}%</td>
-                    <td className="px-4 py-3">
-                      {isOutOfStock ? <span className="inline-block px-2 py-1 rounded-full text-xs font-semibold bg-red-200 text-red-800">Out of Stock</span> :
-                        isLowStock ? <span className="inline-block px-2 py-1 rounded-full text-xs font-semibold bg-yellow-200 text-yellow-800">Low Stock</span> :
-                        <span className="inline-block px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">In Stock</span>}
-                    </td>
-                    <td className="px-4 py-3 flex gap-2">
-                      <button className="text-blue-600 hover:underline" onClick={() => openEditModal(stock)}>Edit</button>
-                      <button className="text-red-600 hover:underline" onClick={() => handleDelete(stock)}>Delete</button>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-      {/* Pagination */}
-      <div className="flex justify-between items-center px-4 py-3 border-t border-neutral-100 bg-neutral-50">
-        <span className="text-xs text-neutral-500">Page {page} of {totalPages}</span>
-        <div className="flex gap-2">
-          <button
-            className="px-3 py-1 rounded-md border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100 text-xs font-medium"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
+    <Container>
+      <div className="max-w-6xl mx-auto px-2 sm:px-4 py-8 w-full">
+        <h1 className="text-2xl font-bold text-primary-700 mb-4">Stocks</h1>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-4">
+          <input
+            type="text"
+            placeholder="Search by name or category..."
+            className="border border-neutral-200 rounded-md px-3 py-2 text-sm w-full sm:w-64"
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
+          />
+          <select
+            className="border border-neutral-200 rounded-md px-3 py-2 text-sm w-full sm:w-48"
+            value={filterCategory}
+            onChange={e => { setFilterCategory(e.target.value); setPage(1); }}
           >
-            Previous
-          </button>
-          <button
-            className="px-3 py-1 rounded-md border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100 text-xs font-medium"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page === totalPages}
+            <option value="">All Categories</option>
+            {COSMETIC_CATEGORIES.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+          <select
+            className="border border-neutral-200 rounded-md px-3 py-2 text-sm w-full sm:w-40"
+            value={filterStatus}
+            onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
           >
-            Next
+            <option value="">All Statuses</option>
+            <option value="in">In Stock</option>
+            <option value="low">Low Stock</option>
+            <option value="out">Out of Stock</option>
+          </select>
+          <button className="bg-primary-700 hover:bg-primary-800 text-white font-medium px-4 py-2 rounded-md text-sm shadow-sm transition-colors w-full sm:w-auto" onClick={openAddModal}>
+            + Add Product
           </button>
         </div>
+        <div className="bg-white rounded-xl border border-neutral-100 shadow-sm overflow-x-auto w-full">
+          <table className="min-w-full text-sm w-full">
+            <thead>
+              <tr className="text-neutral-500 text-xs uppercase">
+                <th className="px-4 py-3 text-left cursor-pointer" onClick={() => { setSortBy('productName'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>Product Name</th>
+                <th className="px-4 py-3 text-left cursor-pointer" onClick={() => { setSortBy('category'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>Category</th>
+                <th className="px-4 py-3 text-left cursor-pointer" onClick={() => { setSortBy('quantity'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>Quantity</th>
+                <th className="px-4 py-3 text-left cursor-pointer" onClick={() => { setSortBy('costPrice'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>Cost Price</th>
+                <th className="px-4 py-3 text-left cursor-pointer" onClick={() => { setSortBy('sellingPrice'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>Selling Price</th>
+                <th className="px-4 py-3 text-left cursor-pointer" onClick={() => { setSortBy('profitMargin'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>Profit Margin</th>
+                <th className="px-4 py-3 text-left">Status</th>
+                <th className="px-4 py-3 text-left">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedStocks.length === 0 ? (
+                <tr><td colSpan={8} className="text-center py-8 text-neutral-400">No products found.</td></tr>
+              ) : (
+                paginatedStocks.map((stock) => {
+                  const profitMargin = stock.costPrice ? (((stock.sellingPrice - stock.costPrice) / stock.costPrice) * 100).toFixed(1) : '0';
+                  const isLowStock = stock.quantity < (stock.lowStockThreshold || 5) && stock.quantity > 0;
+                  const isOutOfStock = stock.quantity === 0;
+                  return (
+                    <tr key={stock.id} className={`border-t border-neutral-100 ${isOutOfStock ? 'bg-red-50' : isLowStock ? 'bg-yellow-50' : ''}`}>
+                      <td className="px-4 py-3 font-medium text-neutral-900">{stock.productName}</td>
+                      <td className="px-4 py-3">{stock.category || '-'}</td>
+                      <td className="px-4 py-3">{stock.quantity}</td>
+                      <td className="px-4 py-3">LKR {stock.costPrice}</td>
+                      <td className="px-4 py-3">LKR {stock.sellingPrice}</td>
+                      <td className="px-4 py-3">{profitMargin}%</td>
+                      <td className="px-4 py-3">
+                        {isOutOfStock ? <span className="inline-block px-2 py-1 rounded-full text-xs font-semibold bg-red-200 text-red-800">Out of Stock</span> :
+                          isLowStock ? <span className="inline-block px-2 py-1 rounded-full text-xs font-semibold bg-yellow-200 text-yellow-800">Low Stock</span> :
+                          <span className="inline-block px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">In Stock</span>}
+                      </td>
+                      <td className="px-4 py-3 flex gap-2">
+                        <button className="text-blue-600 hover:underline" onClick={() => openEditModal(stock)}>Edit</button>
+                        <button className="text-red-600 hover:underline" onClick={() => handleDelete(stock)}>Delete</button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+        {/* Pagination */}
+        <div className="flex justify-between items-center px-4 py-3 border-t border-neutral-100 bg-neutral-50">
+          <span className="text-xs text-neutral-500">Page {page} of {totalPages}</span>
+          <div className="flex gap-2">
+            <button
+              className="px-3 py-1 rounded-md border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100 text-xs font-medium"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              Previous
+            </button>
+            <button
+              className="px-3 py-1 rounded-md border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100 text-xs font-medium"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+        {/* Edit Modal */}
+        {modalOpen && editStock && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 relative">
+              <h2 className="text-xl font-bold mb-4">Edit Stock</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Quantity</label>
+                  <input type="number" name="quantity" value={form.quantity} onChange={handleEditChange} className="w-full border border-neutral-200 rounded-md px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Cost Price</label>
+                  <input type="number" name="costPrice" value={form.costPrice} onChange={handleEditChange} className="w-full border border-neutral-200 rounded-md px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Selling Price</label>
+                  <input type="number" name="sellingPrice" value={form.sellingPrice} onChange={handleEditChange} className="w-full border border-neutral-200 rounded-md px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Low Stock Threshold</label>
+                  <input type="number" name="lowStockThreshold" value={form.lowStockThreshold} onChange={handleEditChange} className="w-full border border-neutral-200 rounded-md px-3 py-2" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 mt-6">
+                <button className="px-4 py-2 rounded-md border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100" onClick={() => setModalOpen(false)}>Cancel</button>
+                <button className="px-4 py-2 rounded-md bg-primary-700 text-white font-medium hover:bg-primary-800" onClick={handleSave}>Save</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Add Modal */}
+        {addModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30 transition-opacity animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 relative animate-slideUp">
+              <button className="absolute top-3 right-3 text-neutral-400 hover:text-neutral-700 text-2xl" onClick={() => setAddModalOpen(false)} aria-label="Close">&times;</button>
+              <h2 className="text-2xl font-bold mb-6 text-primary-700 text-center">Add Product</h2>
+              <form className="space-y-6" onSubmit={e => { e.preventDefault(); handleAdd(); }}>
+                <div className="relative">
+                  <input type="text" name="productName" value={addForm.productName} onChange={handleProductNameChange} required
+                    className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all placeholder-transparent" placeholder="Product Name" autoComplete="off"
+                    onKeyDown={handleProductNameKeyDown}
+                  />
+                  <label className="absolute left-3 top-2 text-xs text-neutral-500 transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-2 peer-focus:text-xs bg-white px-1">Product Name</label>
+                  {showSuggestions && productSuggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 top-14 z-10 bg-white border border-neutral-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                      {suggestionLoading ? (
+                        <div className="px-4 py-2 text-neutral-400 text-sm">Loading...</div>
+                      ) : (
+                        productSuggestions.map((product, idx) => (
+                          <button type="button" key={idx} className={`w-full text-left px-4 py-2 transition-colors text-sm ${highlightedIndex === idx ? 'bg-primary-100 text-primary-800' : 'hover:bg-primary-50'}`} onClick={() => handleSuggestionClick(product)}>
+                            {product.name} <span className="text-neutral-400">LKR {product.price}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="relative">
+                  <select name="category" value={addForm.category} onChange={handleAddChange} required
+                    className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all">
+                    <option value="" disabled>Select Category</option>
+                    {COSMETIC_CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                  <label className="absolute left-3 top-2 text-xs text-neutral-500 transition-all peer-focus:top-2 peer-focus:text-xs bg-white px-1">Category</label>
+                </div>
+                <div className="relative">
+                  <input type="number" name="quantity" value={addForm.quantity} onChange={handleAddChange} required min={0}
+                    onFocus={handleAddFocus}
+                    className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all placeholder-transparent" placeholder="Quantity" />
+                  <label className="absolute left-3 top-2 text-xs text-neutral-500 transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-2 peer-focus:text-xs bg-white px-1">Quantity</label>
+                </div>
+                <div className="relative">
+                  <input type="number" name="costPrice" value={addForm.costPrice} onChange={handleAddChange} required min={0}
+                    onFocus={handleAddFocus}
+                    className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all placeholder-transparent" placeholder="Cost Price" />
+                  <label className="absolute left-3 top-2 text-xs text-neutral-500 transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-2 peer-focus:text-xs bg-white px-1">Cost Price</label>
+                </div>
+                <div className="relative">
+                  <input type="number" name="sellingPrice" value={addForm.sellingPrice} onChange={handleAddChange} required min={0}
+                    onFocus={handleAddFocus}
+                    className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all placeholder-transparent" placeholder="Selling Price" />
+                  <label className="absolute left-3 top-2 text-xs text-neutral-500 transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-2 peer-focus:text-xs bg-white px-1">Selling Price</label>
+                </div>
+                <div className="relative">
+                  <input type="number" name="lowStockThreshold" value={addForm.lowStockThreshold} onChange={handleAddChange} required min={1}
+                    className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all placeholder-transparent" placeholder="Low Stock Threshold" />
+                  <label className="absolute left-3 top-2 text-xs text-neutral-500 transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-2 peer-focus:text-xs bg-white px-1">Low Stock Threshold</label>
+                </div>
+                <div className="flex justify-end gap-2 mt-8">
+                  <button type="button" className="px-4 py-2 rounded-md border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100 transition-colors" onClick={() => setAddModalOpen(false)}>Cancel</button>
+                  <button type="submit" className="px-4 py-2 rounded-md bg-primary-700 text-white font-medium hover:bg-primary-800 shadow-sm transition-colors">Add</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
-      {/* Edit Modal */}
-      {modalOpen && editStock && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 relative">
-            <h2 className="text-xl font-bold mb-4">Edit Stock</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Quantity</label>
-                <input type="number" name="quantity" value={form.quantity} onChange={handleEditChange} className="w-full border border-neutral-200 rounded-md px-3 py-2" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Cost Price</label>
-                <input type="number" name="costPrice" value={form.costPrice} onChange={handleEditChange} className="w-full border border-neutral-200 rounded-md px-3 py-2" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Selling Price</label>
-                <input type="number" name="sellingPrice" value={form.sellingPrice} onChange={handleEditChange} className="w-full border border-neutral-200 rounded-md px-3 py-2" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Low Stock Threshold</label>
-                <input type="number" name="lowStockThreshold" value={form.lowStockThreshold} onChange={handleEditChange} className="w-full border border-neutral-200 rounded-md px-3 py-2" />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-6">
-              <button className="px-4 py-2 rounded-md border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100" onClick={() => setModalOpen(false)}>Cancel</button>
-              <button className="px-4 py-2 rounded-md bg-primary-700 text-white font-medium hover:bg-primary-800" onClick={handleSave}>Save</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Add Modal */}
-      {addModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30 transition-opacity animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 relative animate-slideUp">
-            <button className="absolute top-3 right-3 text-neutral-400 hover:text-neutral-700 text-2xl" onClick={() => setAddModalOpen(false)} aria-label="Close">&times;</button>
-            <h2 className="text-2xl font-bold mb-6 text-primary-700 text-center">Add Product</h2>
-            <form className="space-y-6" onSubmit={e => { e.preventDefault(); handleAdd(); }}>
-              <div className="relative">
-                <input type="text" name="productName" value={addForm.productName} onChange={handleProductNameChange} required
-                  className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all placeholder-transparent" placeholder="Product Name" autoComplete="off"
-                  onKeyDown={handleProductNameKeyDown}
-                />
-                <label className="absolute left-3 top-2 text-xs text-neutral-500 transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-2 peer-focus:text-xs bg-white px-1">Product Name</label>
-                {showSuggestions && productSuggestions.length > 0 && (
-                  <div className="absolute left-0 right-0 top-14 z-10 bg-white border border-neutral-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
-                    {suggestionLoading ? (
-                      <div className="px-4 py-2 text-neutral-400 text-sm">Loading...</div>
-                    ) : (
-                      productSuggestions.map((product, idx) => (
-                        <button type="button" key={idx} className={`w-full text-left px-4 py-2 transition-colors text-sm ${highlightedIndex === idx ? 'bg-primary-100 text-primary-800' : 'hover:bg-primary-50'}`} onClick={() => handleSuggestionClick(product)}>
-                          {product.name} <span className="text-neutral-400">LKR {product.price}</span>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="relative">
-                <select name="category" value={addForm.category} onChange={handleAddChange} required
-                  className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all">
-                  <option value="" disabled>Select Category</option>
-                  {COSMETIC_CATEGORIES.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-                <label className="absolute left-3 top-2 text-xs text-neutral-500 transition-all peer-focus:top-2 peer-focus:text-xs bg-white px-1">Category</label>
-              </div>
-              <div className="relative">
-                <input type="number" name="quantity" value={addForm.quantity} onChange={handleAddChange} required min={0}
-                  onFocus={handleAddFocus}
-                  className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all placeholder-transparent" placeholder="Quantity" />
-                <label className="absolute left-3 top-2 text-xs text-neutral-500 transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-2 peer-focus:text-xs bg-white px-1">Quantity</label>
-              </div>
-              <div className="relative">
-                <input type="number" name="costPrice" value={addForm.costPrice} onChange={handleAddChange} required min={0}
-                  onFocus={handleAddFocus}
-                  className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all placeholder-transparent" placeholder="Cost Price" />
-                <label className="absolute left-3 top-2 text-xs text-neutral-500 transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-2 peer-focus:text-xs bg-white px-1">Cost Price</label>
-              </div>
-              <div className="relative">
-                <input type="number" name="sellingPrice" value={addForm.sellingPrice} onChange={handleAddChange} required min={0}
-                  onFocus={handleAddFocus}
-                  className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all placeholder-transparent" placeholder="Selling Price" />
-                <label className="absolute left-3 top-2 text-xs text-neutral-500 transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-2 peer-focus:text-xs bg-white px-1">Selling Price</label>
-              </div>
-              <div className="relative">
-                <input type="number" name="lowStockThreshold" value={addForm.lowStockThreshold} onChange={handleAddChange} required min={1}
-                  className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all placeholder-transparent" placeholder="Low Stock Threshold" />
-                <label className="absolute left-3 top-2 text-xs text-neutral-500 transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-2 peer-focus:text-xs bg-white px-1">Low Stock Threshold</label>
-              </div>
-              <div className="flex justify-end gap-2 mt-8">
-                <button type="button" className="px-4 py-2 rounded-md border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100 transition-colors" onClick={() => setAddModalOpen(false)}>Cancel</button>
-                <button type="submit" className="px-4 py-2 rounded-md bg-primary-700 text-white font-medium hover:bg-primary-800 shadow-sm transition-colors">Add</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
+    </Container>
   );
 } 
