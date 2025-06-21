@@ -213,7 +213,7 @@ export default function POSPage() {
     // 6. Update customer points if they are a registered customer
     if (customerInfoId) {
       const customerRef = doc(db, 'customer_info', customerInfoId);
-      const pointsFromSale = Math.floor(total);
+      const pointsFromSale = Math.floor(total / 200);
       await updateDoc(customerRef, {
         points: increment(pointsFromSale)
       });
