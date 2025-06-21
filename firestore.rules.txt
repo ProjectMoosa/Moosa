@@ -69,6 +69,18 @@ service cloud.firestore {
       allow create: if request.auth.uid == request.resource.data.vendorId;
       allow read: if request.auth.uid == resource.data.vendorId;
     }
+
+    match /points/{pointId} {
+      allow create: if isVendor(request.auth.uid) &&
+                       request.resource.data.vendorId == request.auth.uid &&
+                       request.resource.data.customerId is string &&
+                       request.resource.data.pointsEarned is number &&
+                       request.resource.data.purchaseTotal is number &&
+                       request.resource.data.purchaseRefId is string &&
+                       request.resource.data.timestamp is timestamp;
+      allow read: if (isVendor(request.auth.uid) && resource.data.vendorId == request.auth.uid) || isAuthorizedSuperAdmin();
+      allow update, delete: if isAuthorizedSuperAdmin();
+    }
     
     match /subscription_plans/{planId} {
       allow read, write: if isAuthorizedSuperAdmin();
