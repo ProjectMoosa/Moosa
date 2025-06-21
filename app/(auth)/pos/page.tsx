@@ -384,7 +384,7 @@ export default function POSPage() {
                     >
                       <div className="flex justify-between items-center">
                         <h3 className="text-sm font-semibold text-neutral-800 truncate pr-2">{item.productName}</h3>
-                        <span className={`w-2 h-2 rounded-full ${status.color}`} title={status.text}></span>
+                        <span className={`w-3 h-3 rounded-full ${status.color}`} title={status.text}></span>
                       </div>
                       <p className="text-sm text-neutral-600 mt-1">{formatCurrency(item.sellingPrice)}</p>
                       <p className="text-xs text-neutral-400 mt-1">Stock: {item.quantity}</p>
@@ -516,7 +516,7 @@ export default function POSPage() {
                 >
                   <div className="flex justify-between items-center">
                     <div className="font-semibold text-sm truncate pr-2">{item.productName}</div>
-                    <span className={`w-2 h-2 rounded-full ${status.color}`} title={status.text}></span>
+                    <span className={`w-3 h-3 rounded-full ${status.color}`} title={status.text}></span>
                   </div>
                   <div className="text-xs text-neutral-500">{item.category}</div>
                   <div className="mt-2 text-right font-bold text-primary-700">{formatCurrency(item.sellingPrice)}</div>
