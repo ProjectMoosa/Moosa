@@ -594,6 +594,18 @@ video {
 .bottom-full {
   bottom: 100%;
 }
+.-right-0 {
+  right: -0px;
+}
+.-right-0\.5 {
+  right: -0.125rem;
+}
+.-top-0 {
+  top: -0px;
+}
+.-top-0\.5 {
+  top: -0.125rem;
+}
 .z-10 {
   z-index: 10;
 }
@@ -1485,6 +1497,9 @@ video {
 .pt-6 {
   padding-top: 1.5rem;
 }
+.pt-3 {
+  padding-top: 0.75rem;
+}
 .text-left {
   text-align: left;
 }
@@ -2248,6 +2263,11 @@ body {
   .sm\:py-8 {
     padding-top: 2rem;
     padding-bottom: 2rem;
+  }
+
+  .sm\:py-2 {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
   }
 
   .sm\:text-2xl {

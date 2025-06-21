@@ -8,6 +8,7 @@ import { useUser } from '@/components/useUser';
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { Bell } from 'lucide-react';
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -48,9 +49,9 @@ export default function Navbar() {
     if (plan === 'professional') {
       navLinks = [
         { name: 'Dashboard', href: '/dashboard' },
+        { name: 'POS', href: '/pos'},
         { name: 'Stocks', href: '/stocks' },
         { name: 'Analytics', href: '/analytics' },
-        { name: 'Notifications', href: '/notifications' },
         { name: 'Billing', href: '/billing' },
         { name: 'Orders', href: '/orders' },
       ];
@@ -58,7 +59,6 @@ export default function Navbar() {
       navLinks = [
         { name: 'Dashboard', href: '/dashboard' },
         { name: 'Stocks', href: '/stocks' },
-        { name: 'Notifications', href: '/notifications' },
       ];
     }
   }
@@ -112,13 +112,11 @@ export default function Navbar() {
                 title="Notifications"
                 aria-label="Notifications"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a2.25 2.25 0 01-4.07 0M21 19.5a1.5 1.5 0 01-1.5-1.5V11a7.5 7.5 0 10-15 0v7a1.5 1.5 0 01-1.5 1.5h18z" />
-                </svg>
+                <Bell className="w-6 h-6" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[20px] h-5 flex items-center justify-center font-bold animate-pulse shadow-lg border-2 border-white">
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </span>
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[20px] h-5 flex items-center justify-center font-bold animate-pulse shadow-lg border-2 border-white">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
                 )}
               </button>
             </div>
@@ -187,13 +185,11 @@ export default function Navbar() {
                   className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium text-neutral-700 hover:text-primary-700 hover:bg-primary-50 transition-colors"
                 >
                   <div className="relative">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a2.25 2.25 0 01-4.07 0M21 19.5a1.5 1.5 0 01-1.5-1.5V11a7.5 7.5 0 10-15 0v7a1.5 1.5 0 01-1.5 1.5h18z" />
-                    </svg>
+                    <Bell className="w-5 h-5" />
                     {unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] h-4 flex items-center justify-center font-bold animate-pulse shadow-lg border border-white">
-                        {unreadCount > 99 ? '99+' : unreadCount}
-                      </span>
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] h-4 flex items-center justify-center font-bold animate-pulse shadow-lg border border-white">
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </span>
                     )}
                   </div>
                   Notifications {unreadCount > 0 && `(${unreadCount})`}
