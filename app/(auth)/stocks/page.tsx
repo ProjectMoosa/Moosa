@@ -1,10 +1,12 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, doc, updateDoc, addDoc, startAt, endAt, orderBy, limit, deleteDoc } from "firebase/firestore";
 import { useUser } from '@/components/useUser';
 import Container from '@/components/Container';
 import { Timestamp } from "firebase/firestore";
+import BarcodeScanner from "@/components/BarcodeScanner";
+import { ScanLine } from "lucide-react";
 
 interface VendorStock {
   id: string;
@@ -14,6 +16,7 @@ interface VendorStock {
   sellingPrice: number;
   category?: string;
   lowStockThreshold?: number;
+  barcode?: string;
 }
 
 interface StockForm {
@@ -23,6 +26,7 @@ interface StockForm {
   costPrice: number;
   sellingPrice: number;
   lowStockThreshold: number;
+  barcode: string;
 }
 
 const COSMETIC_CATEGORIES = [
@@ -35,9 +39,9 @@ export default function VendorStocksPage() {
   const [loadingStocks, setLoadingStocks] = useState(true);
   const [editStock, setEditStock] = useState<VendorStock | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState<StockForm>({ productName: '', category: '', quantity: 0, costPrice: 0, sellingPrice: 0, lowStockThreshold: 5 });
+  const [form, setForm] = useState<StockForm>({ productName: '', category: '', quantity: 0, costPrice: 0, sellingPrice: 0, lowStockThreshold: 5, barcode: '' });
   const [addModalOpen, setAddModalOpen] = useState(false);
-  const [addForm, setAddForm] = useState<StockForm>({ productName: '', category: '', quantity: 0, costPrice: 0, sellingPrice: 0, lowStockThreshold: 5 });
+  const [addForm, setAddForm] = useState<StockForm>({ productName: '', category: '', quantity: 0, costPrice: 0, sellingPrice: 0, lowStockThreshold: 5, barcode: '' });
   const [productSuggestions, setProductSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
@@ -47,8 +51,26 @@ export default function VendorStocksPage() {
   const [sortBy, setSortBy] = useState("");
   const [sortDir, setSortDir] = useState("asc");
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const [pageSize, setPageSize] = useState(10);
   const [filterStatus, setFilterStatus] = useState("");
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [editingField, setEditingField] = useState<'add' | 'edit' | null>(null);
+
+  const handleScanSuccess = useCallback((decodedText: string) => {
+    if (editingField === 'add') {
+      setAddForm(prev => ({ ...prev, barcode: decodedText, productName: '', category: '', quantity: 0, costPrice: 0, sellingPrice: 0, lowStockThreshold: 5 }));
+      setAddModalOpen(true);
+    } else if (editingField === 'edit') {
+      setForm(prev => ({ ...prev, barcode: decodedText }));
+    }
+    setIsScannerOpen(false);
+    setEditingField(null);
+  }, [editingField]);
+
+  const handleScannerClose = useCallback(() => {
+    setIsScannerOpen(false);
+    setEditingField(null);
+  }, []);
   
   useEffect(() => {
     if (!user || role !== 'vendor') return;
@@ -62,6 +84,10 @@ export default function VendorStocksPage() {
     fetchStocks();
   }, [user, role]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [search, filterCategory, filterStatus]);
+
   const openEditModal = (stock: VendorStock) => {
     setEditStock(stock);
     setForm({
@@ -71,6 +97,7 @@ export default function VendorStocksPage() {
       category: stock.category || '',
       lowStockThreshold: stock.lowStockThreshold || 5,
       productName: stock.productName,
+      barcode: stock.barcode || '',
     });
     setModalOpen(true);
   };
@@ -93,6 +120,7 @@ export default function VendorStocksPage() {
       sellingPrice: form.sellingPrice,
       category: form.category,
       lowStockThreshold: form.lowStockThreshold,
+      barcode: form.barcode,
     });
     
     // Create notification if stock just went low
@@ -113,7 +141,7 @@ export default function VendorStocksPage() {
   };
 
   const openAddModal = () => {
-    setAddForm({ productName: '', category: '', quantity: 0, costPrice: 0, sellingPrice: 0, lowStockThreshold: 5 });
+    setAddForm({ productName: '', category: '', quantity: 0, costPrice: 0, sellingPrice: 0, lowStockThreshold: 5, barcode: '' });
     setAddModalOpen(true);
   };
 
@@ -129,9 +157,30 @@ export default function VendorStocksPage() {
 
   const handleAdd = async () => {
     if (!user) return;
+
+    // Normalize product name for checking
+    const newProductName = addForm.productName.trim();
+    if (!newProductName) {
+      alert("Product name cannot be empty.");
+      return;
+    }
+
+    // Check for duplicates
+    const q = query(
+      collection(db, "vendor_stocks"),
+      where("vendorId", "==", user.uid),
+      where("productName", "==", newProductName)
+    );
+
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+      alert("This product already exists in your stock. Please edit the existing item instead.");
+      return;
+    }
     
     const docRef = await addDoc(collection(db, 'vendor_stocks'), {
       ...addForm,
+      productName: newProductName, // Use the trimmed name
       vendorId: user.uid,
     });
     
@@ -155,19 +204,25 @@ export default function VendorStocksPage() {
   const handleProductNameChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setAddForm({ ...addForm, productName: value });
-    if (value.length > 0) {
+    if (value.length >= 2) { // Start searching after 2 or more characters
       setSuggestionLoading(true);
-      const q = query(
-        collection(db, 'products_master'),
-        orderBy('name'),
-        startAt(value),
-        endAt(value + '\uf8ff'),
-        limit(5)
-      );
-      const snap = await getDocs(q);
-      setProductSuggestions(snap.docs.map(doc => doc.data()));
-      setShowSuggestions(true);
-      setSuggestionLoading(false);
+      setShowSuggestions(true); // Show the dropdown with loading state
+      try {
+        const q = query(
+          collection(db, 'products_master'),
+          orderBy('name'),
+          startAt(value),
+          endAt(value + '\uf8ff'),
+          limit(5)
+        );
+        const snap = await getDocs(q);
+        setProductSuggestions(snap.docs.map(doc => doc.data()));
+      } catch (error) {
+        console.error("Error fetching product suggestions:", error);
+        setProductSuggestions([]); // Clear suggestions on error
+      } finally {
+        setSuggestionLoading(false);
+      }
     } else {
       setProductSuggestions([]);
       setShowSuggestions(false);
@@ -214,7 +269,7 @@ export default function VendorStocksPage() {
     if (filterStatus === "low") statusMatch = isLowStock;
     if (filterStatus === "out") statusMatch = isOutOfStock;
     return (
-      (!search || s.productName.toLowerCase().includes(search.toLowerCase()) || (s.category || '').toLowerCase().includes(search.toLowerCase())) &&
+      (!search || s.productName.toLowerCase().includes(search.toLowerCase()) || (s.category || '').toLowerCase().includes(search.toLowerCase()) || (s.barcode || '').toLowerCase().includes(search.toLowerCase())) &&
       (!filterCategory || s.category === filterCategory) &&
       statusMatch
     );
@@ -257,9 +312,15 @@ export default function VendorStocksPage() {
       <div className="max-w-6xl mx-auto px-2 sm:px-4 py-8 w-full">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-neutral-800">Stocks</h1>
-          <button className="bg-primary-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-primary-800 transition-colors" onClick={openAddModal}>
-            Add Stock
-          </button>
+          <div className="flex gap-2">
+            <button className="bg-primary-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-primary-800 transition-colors" onClick={openAddModal}>
+              Add Stock
+            </button>
+            <button className="bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-green-700 transition-colors flex items-center gap-2" onClick={() => { setIsScannerOpen(true); setEditingField('add'); }}>
+              <ScanLine className="w-4 h-4" />
+              Scan & Add
+            </button>
+          </div>
         </div>
         
         {/* Filters and Search */}
@@ -309,6 +370,7 @@ export default function VendorStocksPage() {
                     <th className="px-4 py-3 text-left">Selling Price</th>
                     <th className="px-4 py-3 text-left">Profit Margin</th>
                     <th className="px-4 py-3 text-left">Status</th>
+                    <th className="px-4 py-3 text-left">Barcode</th>
                     <th className="px-4 py-3 text-left">Actions</th>
                   </tr>
                 </thead>
@@ -322,10 +384,10 @@ export default function VendorStocksPage() {
                         <td className="px-4 py-3 font-medium text-neutral-800">{s.productName}</td>
                         <td className="px-4 py-3 text-neutral-600">{s.category || '-'}</td>
                         <td className="px-4 py-3 text-neutral-600">{s.quantity}</td>
-                        <td className="px-4 py-3 text-neutral-600">LKR {s.costPrice.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-neutral-600">LKR {s.sellingPrice.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">LKR {s.costPrice.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">LKR {s.sellingPrice.toLocaleString()}</td>
                         <td className="px-4 py-3 text-neutral-600">{profitMargin.toFixed(1)}%</td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 whitespace-nowrap">
                           {isOutOfStock ? (
                             <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-semibold">Out of Stock</span>
                           ) : isLowStock ? (
@@ -334,6 +396,7 @@ export default function VendorStocksPage() {
                             <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-semibold">In Stock</span>
                           )}
                         </td>
+                        <td className="px-4 py-3 text-neutral-600">{s.barcode || '-'}</td>
                         <td className="px-4 py-3 flex gap-2">
                           <button className="text-blue-600 hover:underline" onClick={() => openEditModal(s)}>Edit</button>
                           <button className="text-red-600 hover:underline" onClick={() => handleDelete(s)}>Delete</button>
@@ -356,7 +419,7 @@ export default function VendorStocksPage() {
                           <div className="font-bold text-neutral-800">{s.productName}</div>
                           <div className="text-neutral-600 text-xs">{s.category || '-'}</div>
                         </div>
-                        <div>
+                        <div className="whitespace-nowrap">
                           {isOutOfStock ? (
                             <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-semibold">Out of Stock</span>
                           ) : isLowStock ? (
@@ -383,6 +446,10 @@ export default function VendorStocksPage() {
                           <div className="text-neutral-500 text-xs">Profit Margin</div>
                           <div>{profitMargin.toFixed(1)}%</div>
                         </div>
+                      </div>
+                      <div className="mt-4 text-sm">
+                        <div className="text-neutral-500 text-xs">Barcode</div>
+                        <div className="text-neutral-800 font-mono">{s.barcode || '-'}</div>
                       </div>
                       <div className="mt-4 flex gap-4">
                         <button className="text-blue-600 hover:underline text-sm" onClick={() => openEditModal(s)}>Edit</button>
@@ -436,6 +503,15 @@ export default function VendorStocksPage() {
                 <div>
                   <label className="block text-sm font-medium mb-1">Low Stock Threshold</label>
                   <input type="number" name="lowStockThreshold" value={form.lowStockThreshold} onChange={handleEditChange} className="w-full border border-neutral-200 rounded-md px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Barcode (optional)</label>
+                  <div className="flex items-center gap-2">
+                    <input type="text" name="barcode" value={form.barcode} onChange={handleEditChange} className="w-full border border-neutral-200 rounded-md px-3 py-2" />
+                    <button type="button" onClick={() => { setIsScannerOpen(true); setEditingField('edit'); }} className="p-2 border rounded-md hover:bg-neutral-100">
+                      <ScanLine className="w-5 h-5 text-neutral-600" />
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="flex justify-end gap-2 mt-6">
@@ -501,6 +577,14 @@ export default function VendorStocksPage() {
                   <label className="absolute left-3 top-2 text-xs text-neutral-500 transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-2 peer-focus:text-xs bg-white px-1">Selling Price</label>
                 </div>
                 <div className="relative">
+                  <input type="text" name="barcode" value={addForm.barcode} onChange={handleAddChange}
+                    className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all placeholder-transparent" placeholder="Barcode" />
+                  <label className="absolute left-3 top-2 text-xs text-neutral-500 transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-2 peer-focus:text-xs bg-white px-1">Barcode (optional)</label>
+                  <button type="button" onClick={() => { setIsScannerOpen(true); setEditingField('add'); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-neutral-100">
+                    <ScanLine className="w-5 h-5 text-neutral-600" />
+                  </button>
+                </div>
+                <div className="relative">
                   <input type="number" name="lowStockThreshold" value={addForm.lowStockThreshold} onChange={handleAddChange} required min={1}
                     className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all placeholder-transparent" placeholder="Low Stock Threshold" />
                   <label className="absolute left-3 top-2 text-xs text-neutral-500 transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-2 peer-focus:text-xs bg-white px-1">Low Stock Threshold</label>
@@ -512,6 +596,12 @@ export default function VendorStocksPage() {
               </form>
             </div>
           </div>
+        )}
+        {isScannerOpen && (
+          <BarcodeScanner 
+            onScanSuccess={handleScanSuccess} 
+            onClose={handleScannerClose} 
+          />
         )}
       </div>
     </Container>

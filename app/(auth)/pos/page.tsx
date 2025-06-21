@@ -5,6 +5,7 @@ import { collection, query, where, getDocs, doc, writeBatch, Timestamp, addDoc, 
 import { useUser } from '@/components/useUser';
 import { useRouter } from 'next/navigation';
 import { Search, ScanBarcode, ChevronDown, Repeat, AlertTriangle, X } from 'lucide-react';
+import BarcodeScanner from '@/components/BarcodeScanner';
 
 // Interfaces
 interface StockItem {
@@ -15,6 +16,7 @@ interface StockItem {
   purchasePrice?: number;
   category?: string;
   lowStockThreshold?: number;
+  barcode?: string;
 }
 
 interface CartItem {
@@ -67,6 +69,7 @@ export default function POSPage() {
   const [amountPaid, setAmountPaid] = useState<number | null>(null);
   const [purchaseHistory, setPurchaseHistory] = useState<SaleData[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   const taxRate = 0.15; // 15%
 
@@ -241,18 +244,73 @@ export default function POSPage() {
       // A proper implementation would print a dedicated receipt component, not the whole window.
       // For now, we'll just log to the console.
     }
-
     // 7. Clear cart and reset state
     setCart([]);
     setCustomerName('Guest');
     setCustomerPhone('');
     setCustomerInfoId(null);
     setCustomerPoints(null);
-    setPaymentModalOpen(false);
     setAmountPaid(null);
+    setPaymentModalOpen(false);
     setProcessing(false);
-    console.log("Sale complete!");
+    alert("Sale completed successfully!");
   };
+
+  const addToCart = useCallback((item: StockItem) => {
+    if (item.quantity <= 0) {
+      alert(`${item.productName} is out of stock.`);
+      return;
+    }
+    setCart(currentCart => {
+      const existingItem = currentCart.find(cartItem => cartItem.id === item.id);
+      if (existingItem) {
+        // If item exists, increase quantity, but not beyond available stock
+        const newQuantity = Math.min(existingItem.quantity + 1, item.quantity);
+        return currentCart.map(cartItem =>
+          cartItem.id === item.id ? { ...cartItem, quantity: newQuantity } : cartItem
+        );
+      }
+      // If item doesn't exist, add it to the cart
+      return [...currentCart, { id: item.id, name: item.productName, quantity: 1, price: item.sellingPrice, originalQuantity: item.quantity, purchasePrice: item.purchasePrice }];
+    });
+  }, []);
+
+  const updateQuantity = useCallback((id: string, newQuantity: number) => {
+    setCart(currentCart => {
+      const stockItem = stock.find(s => s.id === id);
+      if (!stockItem) return currentCart;
+
+      const updatedQuantity = Math.max(0, Math.min(newQuantity, stockItem.quantity));
+      
+      if (updatedQuantity === 0) {
+        return currentCart.filter(item => item.id !== id);
+      }
+
+      return currentCart.map(item =>
+        item.id === id ? { ...item, quantity: updatedQuantity } : item
+      );
+    });
+  }, [stock]);
+
+  const removeFromCart = (id: string) => setCart(cart.filter(item => item.id !== id));
+
+  const handleScanSuccess = useCallback((barcode: string) => {
+    setIsScannerOpen(false);
+    const item = stock.find(s => s.barcode === barcode);
+    if (item) {
+      if (item.quantity > 0) {
+        addToCart(item);
+      } else {
+        alert(`${item.productName} is out of stock.`);
+      }
+    } else {
+      alert("Product with this barcode not found in your stock.");
+    }
+  }, [stock, addToCart]);
+
+  const handleScannerClose = useCallback(() => {
+    setIsScannerOpen(false);
+  }, []);
 
   const handleFinalizeSale = (andPrint: boolean) => {
     if (cart.length === 0 || !user || processing) return;
@@ -277,39 +335,16 @@ export default function POSPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [initiateCheckout]);
 
-  // Cart & Calculation Logic
-  const addToCart = (item: StockItem) => {
-    setCart(prev => {
-      if (prev.find(cartItem => cartItem.id === item.id)) return prev;
-      return [...prev, { 
-        id: item.id, 
-        name: item.productName, 
-        quantity: 1, 
-        price: item.sellingPrice, 
-        originalQuantity: item.quantity,
-        purchasePrice: item.purchasePrice 
-      }];
-    });
-  };
-
-  const updateQuantity = (id: string, newQuantity: number) => {
-    const stockItem = stock.find(item => item.id === id);
-    if (!stockItem || newQuantity < 1) {
-      removeFromCart(id);
-      return;
-    }
-    if (newQuantity > stockItem.quantity) return; // Maybe show a toast
-    setCart(cart.map(item => item.id === id ? { ...item, quantity: newQuantity } : item));
-  };
-  
-  const removeFromCart = (id: string) => setCart(cart.filter(item => item.id !== id));
-
   // Data Filtering
   const filteredStock = useMemo(() => {
     return stock.filter(item => {
+      const lowerCaseSearchTerm = searchTerm.toLowerCase();
       const matchesCategory = selectedCategory === 'All Categories' || item.category === selectedCategory;
-      const matchesSearch = item.productName.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchesCategory && matchesSearch;
+      const matchesSearch = 
+        item.productName.toLowerCase().includes(lowerCaseSearchTerm) ||
+        (item.barcode && item.barcode.toLowerCase().includes(lowerCaseSearchTerm));
+      
+      return matchesCategory && (searchTerm === '' || matchesSearch);
     });
   }, [stock, searchTerm, selectedCategory]);
   
@@ -350,9 +385,9 @@ export default function POSPage() {
           </header>
 
           {/* Main Content */}
-          <main className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <main className="flex-1 flex flex-col lg:flex-row gap-6 p-4 md:p-6 bg-neutral-50 overflow-y-auto">
             {/* Left Panel: Products */}
-            <div className="lg:col-span-2">
+            <div className="lg:w-3/5 xl:w-2/3">
               <div className="p-4 bg-white rounded-lg border border-neutral-200 shadow-sm">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="relative">
@@ -360,29 +395,29 @@ export default function POSPage() {
                     <input
                       id="search-products"
                       type="text"
-                      placeholder="Search products... (Ctrl + K)"
+                      placeholder="Search by name or barcode... (Ctrl + K)"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-neutral-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+                      className="w-full pl-10 pr-4 py-2 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <button className="px-4 py-2 text-sm font-medium bg-white border border-neutral-300 rounded-lg shadow-sm hover:bg-neutral-100 flex items-center justify-center gap-2">
+                    <button onClick={() => setIsScannerOpen(true)} className="px-4 py-2 text-sm font-medium bg-white border border-neutral-300 rounded-lg shadow-sm hover:bg-neutral-100 flex items-center justify-center gap-2">
                       <ScanBarcode className="w-5 h-5" /> Scan
                     </button>
                     <div className="relative">
-                      <select
+                      <select 
+                        className="w-full h-full px-4 py-2 text-sm font-medium bg-white border border-neutral-300 rounded-lg shadow-sm hover:bg-neutral-100 focus:outline-none appearance-none"
                         value={selectedCategory}
                         onChange={e => setSelectedCategory(e.target.value)}
-                        className="w-full h-full px-4 py-2 text-sm text-left bg-white border border-neutral-300 rounded-lg shadow-sm appearance-none hover:bg-neutral-100"
                       >
-                        {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                        {categories.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500 pointer-events-none" />
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 mt-4">
+                <div className="flex items-center gap-4 mt-4">
                     <button className="px-3 py-1.5 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full hover:bg-yellow-200 flex items-center gap-1.5"><Repeat className="w-3.5 h-3.5" />Repeat Last Sale</button>
                     {hasLowStockItems && (
                       <button className="px-3 py-1.5 text-xs font-semibold text-red-800 bg-red-100 rounded-full hover:bg-red-200 flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5" />Low Stock Alert</button>
@@ -410,7 +445,7 @@ export default function POSPage() {
             </div>
 
             {/* Right Panel: Cart */}
-            <div className="bg-white rounded-lg border border-neutral-200 shadow-sm self-start lg:sticky top-6">
+            <aside className="lg:w-2/5 xl:w-1/3">
               <div className="p-5 border-b border-neutral-200">
                 <h2 className="text-lg font-semibold text-neutral-800">Current Sale ({customerName})</h2>
               </div>
@@ -469,7 +504,7 @@ export default function POSPage() {
                   {processing ? 'Processing...' : 'Complete Sale'}
                 </button>
               </div>
-            </div>
+            </aside>
           </main>
         </div>
       </div>
@@ -501,7 +536,7 @@ export default function POSPage() {
               <input
                 id="search-products-mobile"
                 type="text"
-                placeholder="Search products..."
+                placeholder="Search by name or barcode..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-base"
@@ -744,6 +779,13 @@ export default function POSPage() {
                   </div>
               </div>
           </div>
+      )}
+
+      {isScannerOpen && (
+        <BarcodeScanner 
+          onScanSuccess={handleScanSuccess}
+          onClose={handleScannerClose}
+        />
       )}
     </>
   );
