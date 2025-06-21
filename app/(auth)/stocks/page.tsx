@@ -255,105 +255,166 @@ export default function VendorStocksPage() {
   return (
     <Container>
       <div className="max-w-6xl mx-auto px-2 sm:px-4 py-8 w-full">
-        <h1 className="text-2xl font-bold text-primary-700 mb-4">Stocks</h1>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-4">
-          <input
-            type="text"
-            placeholder="Search by name or category..."
-            className="border border-neutral-200 rounded-md px-3 py-2 text-sm w-full sm:w-64"
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1); }}
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold text-neutral-800">Stocks</h1>
+          <button className="bg-primary-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-primary-800 transition-colors" onClick={openAddModal}>
+            Add Stock
+          </button>
+        </div>
+        
+        {/* Filters and Search */}
+        <div className="mb-4 flex flex-wrap items-center gap-4">
+          <input 
+            type="text" 
+            placeholder="Search by name or category..." 
+            className="border border-neutral-200 rounded-md px-3 py-2 w-full md:w-1/3" 
+            value={search} 
+            onChange={e => setSearch(e.target.value)} 
           />
-          <select
-            className="border border-neutral-200 rounded-md px-3 py-2 text-sm w-full sm:w-48"
-            value={filterCategory}
-            onChange={e => { setFilterCategory(e.target.value); setPage(1); }}
+          <select 
+            className="border border-neutral-200 rounded-md px-3 py-2" 
+            value={filterCategory} 
+            onChange={e => setFilterCategory(e.target.value)}
           >
             <option value="">All Categories</option>
-            {COSMETIC_CATEGORIES.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
+            {COSMETIC_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          <select
-            className="border border-neutral-200 rounded-md px-3 py-2 text-sm w-full sm:w-40"
-            value={filterStatus}
-            onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
+          <select 
+            className="border border-neutral-200 rounded-md px-3 py-2" 
+            value={filterStatus} 
+            onChange={e => setFilterStatus(e.target.value)}
           >
             <option value="">All Statuses</option>
             <option value="in">In Stock</option>
             <option value="low">Low Stock</option>
             <option value="out">Out of Stock</option>
           </select>
-          <button className="bg-primary-700 hover:bg-primary-800 text-white font-medium px-4 py-2 rounded-md text-sm shadow-sm transition-colors w-full sm:w-auto" onClick={openAddModal}>
-            + Add Product
-          </button>
         </div>
-        <div className="bg-white rounded-xl border border-neutral-100 shadow-sm overflow-x-auto w-full">
-          <table className="min-w-full text-sm w-full">
-            <thead>
-              <tr className="text-neutral-500 text-xs uppercase">
-                <th className="px-4 py-3 text-left cursor-pointer" onClick={() => { setSortBy('productName'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>Product Name</th>
-                <th className="px-4 py-3 text-left cursor-pointer" onClick={() => { setSortBy('category'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>Category</th>
-                <th className="px-4 py-3 text-left cursor-pointer" onClick={() => { setSortBy('quantity'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>Quantity</th>
-                <th className="px-4 py-3 text-left cursor-pointer" onClick={() => { setSortBy('costPrice'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>Cost Price</th>
-                <th className="px-4 py-3 text-left cursor-pointer" onClick={() => { setSortBy('sellingPrice'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>Selling Price</th>
-                <th className="px-4 py-3 text-left cursor-pointer" onClick={() => { setSortBy('profitMargin'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>Profit Margin</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-left">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedStocks.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-8 text-neutral-400">No products found.</td></tr>
-              ) : (
-                paginatedStocks.map((stock) => {
-                  const profitMargin = stock.costPrice ? (((stock.sellingPrice - stock.costPrice) / stock.costPrice) * 100).toFixed(1) : '0';
-                  const isLowStock = stock.quantity < (stock.lowStockThreshold || 5) && stock.quantity > 0;
-                  const isOutOfStock = stock.quantity === 0;
-                  return (
-                    <tr key={stock.id} className={`border-t border-neutral-100 ${isOutOfStock ? 'bg-red-50' : isLowStock ? 'bg-yellow-50' : ''}`}>
-                      <td className="px-4 py-3 font-medium text-neutral-900">{stock.productName}</td>
-                      <td className="px-4 py-3">{stock.category || '-'}</td>
-                      <td className="px-4 py-3">{stock.quantity}</td>
-                      <td className="px-4 py-3">LKR {stock.costPrice}</td>
-                      <td className="px-4 py-3">LKR {stock.sellingPrice}</td>
-                      <td className="px-4 py-3">{profitMargin}%</td>
-                      <td className="px-4 py-3">
-                        {isOutOfStock ? <span className="inline-block px-2 py-1 rounded-full text-xs font-semibold bg-red-200 text-red-800">Out of Stock</span> :
-                          isLowStock ? <span className="inline-block px-2 py-1 rounded-full text-xs font-semibold bg-yellow-200 text-yellow-800">Low Stock</span> :
-                          <span className="inline-block px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">In Stock</span>}
-                      </td>
-                      <td className="px-4 py-3 flex gap-2">
-                        <button className="text-blue-600 hover:underline" onClick={() => openEditModal(stock)}>Edit</button>
-                        <button className="text-red-600 hover:underline" onClick={() => handleDelete(stock)}>Delete</button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-        {/* Pagination */}
-        <div className="flex justify-between items-center px-4 py-3 border-t border-neutral-100 bg-neutral-50">
-          <span className="text-xs text-neutral-500">Page {page} of {totalPages}</span>
-          <div className="flex gap-2">
-            <button
-              className="px-3 py-1 rounded-md border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100 text-xs font-medium"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-            >
-              Previous
-            </button>
-            <button
-              className="px-3 py-1 rounded-md border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100 text-xs font-medium"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-            >
-              Next
-            </button>
+
+        {loadingStocks ? (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-700 mx-auto"></div>
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="bg-white rounded-lg shadow-sm overflow-x-auto">
+              {/* Desktop Table */}
+              <table className="min-w-full text-sm hidden lg:table">
+                <thead>
+                  <tr className="text-neutral-500 text-xs uppercase">
+                    <th className="px-4 py-3 text-left">Product Name</th>
+                    <th className="px-4 py-3 text-left">Category</th>
+                    <th className="px-4 py-3 text-left">Quantity</th>
+                    <th className="px-4 py-3 text-left">Cost Price</th>
+                    <th className="px-4 py-3 text-left">Selling Price</th>
+                    <th className="px-4 py-3 text-left">Profit Margin</th>
+                    <th className="px-4 py-3 text-left">Status</th>
+                    <th className="px-4 py-3 text-left">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedStocks.map(s => {
+                    const profitMargin = s.costPrice ? ((s.sellingPrice - s.costPrice) / s.costPrice) * 100 : 0;
+                    const isLowStock = s.quantity < (s.lowStockThreshold || 5) && s.quantity > 0;
+                    const isOutOfStock = s.quantity === 0;
+                    return (
+                      <tr key={s.id} className="border-t border-neutral-100">
+                        <td className="px-4 py-3 font-medium text-neutral-800">{s.productName}</td>
+                        <td className="px-4 py-3 text-neutral-600">{s.category || '-'}</td>
+                        <td className="px-4 py-3 text-neutral-600">{s.quantity}</td>
+                        <td className="px-4 py-3 text-neutral-600">LKR {s.costPrice.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-neutral-600">LKR {s.sellingPrice.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-neutral-600">{profitMargin.toFixed(1)}%</td>
+                        <td className="px-4 py-3">
+                          {isOutOfStock ? (
+                            <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-semibold">Out of Stock</span>
+                          ) : isLowStock ? (
+                            <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs font-semibold">Low Stock</span>
+                          ) : (
+                            <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-semibold">In Stock</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 flex gap-2">
+                          <button className="text-blue-600 hover:underline" onClick={() => openEditModal(s)}>Edit</button>
+                          <button className="text-red-600 hover:underline" onClick={() => handleDelete(s)}>Delete</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {/* Mobile Cards */}
+              <div className="lg:hidden">
+                {paginatedStocks.map(s => {
+                  const profitMargin = s.costPrice ? ((s.sellingPrice - s.costPrice) / s.costPrice) * 100 : 0;
+                  const isLowStock = s.quantity < (s.lowStockThreshold || 5) && s.quantity > 0;
+                  const isOutOfStock = s.quantity === 0;
+                  return (
+                    <div key={s.id} className="border-t border-neutral-100 p-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-bold text-neutral-800">{s.productName}</div>
+                          <div className="text-neutral-600 text-xs">{s.category || '-'}</div>
+                        </div>
+                        <div>
+                          {isOutOfStock ? (
+                            <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-semibold">Out of Stock</span>
+                          ) : isLowStock ? (
+                            <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs font-semibold">Low Stock</span>
+                          ) : (
+                            <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-semibold">In Stock</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
+                        <div>
+                          <div className="text-neutral-500 text-xs">Quantity</div>
+                          <div>{s.quantity}</div>
+                        </div>
+                        <div>
+                          <div className="text-neutral-500 text-xs">Cost Price</div>
+                          <div>LKR {s.costPrice.toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <div className="text-neutral-500 text-xs">Selling Price</div>
+                          <div>LKR {s.sellingPrice.toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <div className="text-neutral-500 text-xs">Profit Margin</div>
+                          <div>{profitMargin.toFixed(1)}%</div>
+                        </div>
+                      </div>
+                      <div className="mt-4 flex gap-4">
+                        <button className="text-blue-600 hover:underline text-sm" onClick={() => openEditModal(s)}>Edit</button>
+                        <button className="text-red-600 hover:underline text-sm" onClick={() => handleDelete(s)}>Delete</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {/* Pagination */}
+            <div className="mt-6 flex justify-between items-center">
+              <span className="text-xs text-neutral-500">Page {page} of {totalPages}</span>
+              <div className="flex gap-2">
+                <button
+                  className="px-3 py-1 rounded-md border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100 text-xs font-medium"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                >
+                  Previous
+                </button>
+                <button
+                  className="px-3 py-1 rounded-md border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100 text-xs font-medium"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </>
+        )}
         {/* Edit Modal */}
         {modalOpen && editStock && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
