@@ -250,42 +250,77 @@ export default function BillingPage() {
                   </div>
                   <div className="overflow-x-auto">
                     {sales.length > 0 ? (
-                      <table className="min-w-full divide-y divide-neutral-200">
-                        <thead className="bg-neutral-50">
-                          <tr>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ref ID</th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Date</th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Customer</th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Items Sold</th>
-                            <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-neutral-500 uppercase tracking-wider">Total</th>
-                            <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-neutral-500 uppercase tracking-wider">Profit</th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-neutral-200">
-                          {sales.map(s => {
-                            const itemsSoldCount = s.items?.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0) ?? 0;
-                            const itemsSoldDisplay = itemsSoldCount > 0 ? itemsSoldCount : (s.total > 0 ? 'N/A' : 0);
-
-                            return (
-                            <tr key={s.id}>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
-                                <div title={s.items?.map(item => `${item.name} (x${item.quantity})`).join(', ')}>
-                                  {s.purchaseRefId}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900">{formatDate(s.timestamp)}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900">{s.customerName}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900 text-center">
-                                {itemsSoldDisplay}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900 text-right">{formatCurrency(s.total)}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900 text-right">
-                                {calculateProfit(s.items) !== null ? formatCurrency(calculateProfit(s.items)!) : 'N/A'}
-                              </td>
+                      <div>
+                        {/* Desktop Table */}
+                        <table className="min-w-full divide-y divide-neutral-200 hidden md:table">
+                          <thead className="bg-neutral-50">
+                            <tr>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ref ID</th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Date</th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Customer</th>
+                              <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-neutral-500 uppercase tracking-wider">Items Sold</th>
+                              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-neutral-500 uppercase tracking-wider">Total</th>
+                              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-neutral-500 uppercase tracking-wider">Profit</th>
                             </tr>
-                          )})}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-neutral-200">
+                            {sales.map(s => {
+                              const itemsSoldCount = s.items?.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0) ?? 0;
+                              const itemsSoldDisplay = itemsSoldCount > 0 ? itemsSoldCount : (s.total > 0 ? 'N/A' : 0);
+
+                              return (
+                              <tr key={s.id}>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
+                                  <div title={s.items?.map(item => `${item.name} (x${item.quantity})`).join(', ')}>
+                                    {s.purchaseRefId}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900">{formatDate(s.timestamp)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900">{s.customerName}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900 text-center">
+                                  {itemsSoldDisplay}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900 text-right">{formatCurrency(s.total)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900 text-right">
+                                  {calculateProfit(s.items) !== null ? formatCurrency(calculateProfit(s.items)!) : 'N/A'}
+                                </td>
+                              </tr>
+                            )})}
+                          </tbody>
+                        </table>
+                        {/* Mobile Cards */}
+                        <div className="md:hidden">
+                           {sales.map(s => {
+                              const itemsSoldCount = s.items?.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0) ?? 0;
+                              const itemsSoldDisplay = itemsSoldCount > 0 ? itemsSoldCount : (s.total > 0 ? 'N/A' : 0);
+                              const profit = calculateProfit(s.items);
+
+                              return (
+                                <div key={s.id} className="border-t border-neutral-200 p-4">
+                                  <div className="flex justify-between items-start">
+                                    <div>
+                                      <div
+                                        className="font-semibold text-primary-700"
+                                        title={s.items?.map(item => `${item.name} (x${item.quantity})`).join(', ')}
+                                      >
+                                        {s.purchaseRefId}
+                                      </div>
+                                      <div className="text-sm text-neutral-800">{s.customerName}</div>
+                                      <div className="text-xs text-neutral-500">{formatDate(s.timestamp)}</div>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="font-bold text-lg">{formatCurrency(s.total)}</div>
+                                      {profit !== null && <div className="text-xs text-green-600">Profit: {formatCurrency(profit)}</div>}
+                                    </div>
+                                  </div>
+                                  <div className="text-center mt-2 text-sm">
+                                    Items Sold: {itemsSoldDisplay}
+                                  </div>
+                                </div>
+                              )
+                           })}
+                        </div>
+                      </div>
                     ) : (
                       <div className="text-center py-12">
                         <div className="text-neutral-400 mb-4">
@@ -324,26 +359,48 @@ export default function BillingPage() {
                   </div>
                   <div className="overflow-x-auto">
                   {customers.length > 0 ? (
-                    <table className="min-w-full divide-y divide-neutral-200">
-                      <thead className="bg-neutral-50">
-                        <tr>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Name</th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Phone</th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">First Purchase</th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Last Purchase</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-neutral-200">
-                        {customers.map(c => (
-                          <tr key={c.id}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-neutral-900">{c.name}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{c.phone}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{formatDate(c.firstSeen)}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{formatDate(c.lastSeen)}</td>
+                    <div>
+                      {/* Desktop Table */}
+                      <table className="min-w-full divide-y divide-neutral-200 hidden md:table">
+                        <thead className="bg-neutral-50">
+                          <tr>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Name</th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Phone</th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">First Purchase</th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Last Purchase</th>
                           </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-neutral-200">
+                          {customers.map(c => (
+                            <tr key={c.id}>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-neutral-900">{c.name}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{c.phone}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{formatDate(c.firstSeen)}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{formatDate(c.lastSeen)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {/* Mobile Cards */}
+                      <div className="md:hidden">
+                        {customers.map(c => (
+                           <div key={c.id} className="border-t border-neutral-200 p-4">
+                              <div className="font-semibold text-neutral-800">{c.name}</div>
+                              <div className="text-sm text-neutral-500">{c.phone}</div>
+                              <div className="grid grid-cols-2 gap-4 mt-2 text-sm">
+                                <div>
+                                  <div className="text-xs text-neutral-400">First Purchase</div>
+                                  <div>{formatDate(c.firstSeen)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-xs text-neutral-400">Last Purchase</div>
+                                  <div>{formatDate(c.lastSeen)}</div>
+                                </div>
+                              </div>
+                           </div>
                         ))}
-                      </tbody>
-                    </table>
+                      </div>
+                    </div>
                      ) : (
                       <div className="text-center py-12">
                         <div className="text-neutral-400 mb-4">
