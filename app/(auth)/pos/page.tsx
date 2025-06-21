@@ -14,6 +14,7 @@ interface StockItem {
   sellingPrice: number;
   purchasePrice?: number;
   category?: string;
+  lowStockThreshold?: number;
 }
 
 interface CartItem {
@@ -68,6 +69,17 @@ export default function POSPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
 
   const taxRate = 0.15; // 15%
+
+  const hasLowStockItems = useMemo(() => {
+    return stock.some(item => item.quantity > 0 && item.quantity < (item.lowStockThreshold || 5));
+  }, [stock]);
+
+  const getStockStatus = (item: StockItem) => {
+    const threshold = item.lowStockThreshold || 5;
+    if (item.quantity === 0) return { text: 'Out of Stock', color: 'bg-red-500' };
+    if (item.quantity < threshold) return { text: 'Low Stock', color: 'bg-yellow-500' };
+    return { text: 'In Stock', color: 'bg-green-500' };
+  };
 
   // Effects
   useEffect(() => {
@@ -298,7 +310,8 @@ export default function POSPage() {
   // Render JSX
   return (
     <>
-      <div className="bg-neutral-50 min-h-screen">
+      {/* Desktop View */}
+      <div className="hidden lg:block bg-neutral-50 min-h-screen">
         <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Page Header */}
           <header className="py-6 flex flex-wrap items-center justify-between gap-4">
@@ -352,29 +365,37 @@ export default function POSPage() {
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 mt-4">
+                <div className="flex flex-wrap items-center gap-2 mt-4">
                     <button className="px-3 py-1.5 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full hover:bg-yellow-200 flex items-center gap-1.5"><Repeat className="w-3.5 h-3.5" />Repeat Last Sale</button>
-                    <button className="px-3 py-1.5 text-xs font-semibold text-red-800 bg-red-100 rounded-full hover:bg-red-200 flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5" />Low Stock Alert</button>
+                    {hasLowStockItems && (
+                      <button className="px-3 py-1.5 text-xs font-semibold text-red-800 bg-red-100 rounded-full hover:bg-red-200 flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5" />Low Stock Alert</button>
+                    )}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mt-6">
-                {filteredStock.map(item => (
-                  <div 
-                    key={item.id} 
-                    onClick={() => addToCart(item)}
-                    className="bg-white rounded-lg p-3 border border-neutral-200 shadow-sm cursor-pointer hover:border-primary-500 hover:ring-1 hover:ring-primary-500"
-                  >
-                    <h3 className="text-sm font-semibold text-neutral-800 truncate">{item.productName}</h3>
-                    <p className="text-sm text-neutral-600 mt-1">{formatCurrency(item.sellingPrice)}</p>
-                    <p className="text-xs text-neutral-400 mt-1">Stock: {item.quantity}</p>
-                  </div>
-                ))}
+                {filteredStock.map(item => {
+                  const status = getStockStatus(item);
+                  return (
+                    <div 
+                      key={item.id} 
+                      onClick={() => addToCart(item)}
+                      className="bg-white rounded-lg p-3 border border-neutral-200 shadow-sm cursor-pointer hover:border-primary-500 hover:ring-1 hover:ring-primary-500"
+                    >
+                      <div className="flex justify-between items-center">
+                        <h3 className="text-sm font-semibold text-neutral-800 truncate pr-2">{item.productName}</h3>
+                        <span className={`w-2 h-2 rounded-full ${status.color}`} title={status.text}></span>
+                      </div>
+                      <p className="text-sm text-neutral-600 mt-1">{formatCurrency(item.sellingPrice)}</p>
+                      <p className="text-xs text-neutral-400 mt-1">Stock: {item.quantity}</p>
+                    </div>
+                  )
+                })}
               </div>
             </div>
 
             {/* Right Panel: Cart */}
-            <div className="bg-white rounded-lg border border-neutral-200 shadow-sm self-start sticky top-6">
+            <div className="bg-white rounded-lg border border-neutral-200 shadow-sm self-start lg:sticky top-6">
               <div className="p-5 border-b border-neutral-200">
                 <h2 className="text-lg font-semibold text-neutral-800">Current Sale ({customerName})</h2>
               </div>
@@ -435,6 +456,100 @@ export default function POSPage() {
               </div>
             </div>
           </main>
+        </div>
+      </div>
+
+      {/* Mobile View */}
+      <div className="lg:hidden h-screen bg-neutral-50 flex flex-col">
+        {/* Main Content - Product Selection */}
+        <div className="flex-1 flex flex-col h-full">
+          {/* Header */}
+          <header className="bg-white border-b border-neutral-200 p-4 flex items-center justify-between">
+            <h1 className="text-xl font-bold text-neutral-800">Point of Sale</h1>
+            <div className="flex items-center gap-4">
+              <div className="text-sm font-medium text-neutral-600">{user?.displayName || user?.email}</div>
+              <button onClick={() => router.push('/dashboard')} className="text-neutral-500 hover:text-neutral-800">
+                <X size={20} />
+              </button>
+            </div>
+          </header>
+
+          {/* Search and Filter */}
+          <div className="p-4 bg-white border-b border-neutral-200">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="relative flex-grow">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={20} />
+                <input
+                  id="search-products-mobile"
+                  type="text"
+                  placeholder="Search products..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+              <div className="relative">
+                <select
+                  value={selectedCategory}
+                  onChange={e => setSelectedCategory(e.target.value)}
+                  className="appearance-none w-full md:w-48 bg-white border border-neutral-300 rounded-lg py-2 pl-3 pr-8 focus:ring-2 focus:ring-primary-500"
+                >
+                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400" size={16} />
+              </div>
+            </div>
+          </div>
+
+          {/* Product Grid */}
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {filteredStock.map(item => {
+                const status = getStockStatus(item);
+                return (
+                <div
+                  key={item.id}
+                  onClick={() => addToCart(item)}
+                  className={`bg-white p-3 rounded-lg shadow-sm cursor-pointer transition-transform transform hover:scale-105 border-2 ${
+                    cart.some(c => c.id === item.id) ? 'border-primary-500' : 'border-transparent'
+                  } ${item.quantity === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div className="font-semibold text-sm truncate pr-2">{item.productName}</div>
+                    <span className={`w-2 h-2 rounded-full ${status.color}`} title={status.text}></span>
+                  </div>
+                  <div className="text-xs text-neutral-500">{item.category}</div>
+                  <div className="mt-2 text-right font-bold text-primary-700">{formatCurrency(item.sellingPrice)}</div>
+                   {item.quantity < 10 && item.quantity > 0 && (
+                     <div className="mt-1 text-xs text-yellow-600 font-bold">Only {item.quantity} left</div>
+                  )}
+                   {item.quantity === 0 && (
+                     <div className="mt-1 text-xs text-red-600 font-bold">Out of stock</div>
+                  )}
+                </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Cart Summary & Checkout Button */}
+          {cart.length > 0 && (
+            <div className="p-4 border-t border-neutral-200 bg-white shadow-lg">
+                <div className="flex justify-between items-center">
+                    <div>
+                        <div className="text-sm text-neutral-600">{cart.length} item(s)</div>
+                        <div className="text-lg font-bold">{formatCurrency(total)}</div>
+                    </div>
+                    <button
+                        onClick={initiateCheckout}
+                        disabled={processing}
+                        className="bg-primary-700 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:bg-primary-800 disabled:bg-primary-300"
+                    >
+                      {processing ? 'Processing...' : 'Checkout'}
+                    </button>
+                </div>
+            </div>
+          )}
         </div>
       </div>
       
