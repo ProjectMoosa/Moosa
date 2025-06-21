@@ -40,6 +40,7 @@ type Customer = {
   phone: string;
   firstSeen?: Timestamp;
   lastSeen?: Timestamp;
+  points?: number;
 };
 
 export default function BillingPage() {
@@ -110,7 +111,20 @@ export default function BillingPage() {
         const customersSnap = await getDocs(customersQuery);
         const registeredCustomers = customersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as {id: string, name: string, phone: string, createdAt: Timestamp}[];
 
-        // Step 5: Augment customer list with purchase dates.
+        // Step 5: Fetch points for all customers in parallel
+        const pointsPromises = registeredCustomers.map(cust => {
+            const pointsQuery = query(collection(db, 'points'), where('customerId', '==', cust.id), where('vendorId', '==', user.uid));
+            return getDocs(pointsQuery);
+        });
+        const pointsSnapshots = await Promise.all(pointsPromises);
+        const customerPoints = new Map<string, number>();
+        pointsSnapshots.forEach((snap, index) => {
+            const customerId = registeredCustomers[index].id;
+            const totalPoints = snap.docs.reduce((sum, doc) => sum + doc.data().pointsEarned, 0);
+            customerPoints.set(customerId, totalPoints);
+        });
+
+        // Step 6: Augment customer list with purchase dates.
         const purchaseDates = new Map<string, { firstSeen: Timestamp; lastSeen: Timestamp }>();
         salesData.forEach(sale => {
           if (sale.customerPhone && sale.timestamp) {
@@ -132,6 +146,7 @@ export default function BillingPage() {
             phone: cust.phone,
             firstSeen: dates?.firstSeen,
             lastSeen: dates?.lastSeen,
+            points: customerPoints.get(cust.id) || 0,
           };
         });
         setCustomers(combinedCustomers);
@@ -366,6 +381,7 @@ export default function BillingPage() {
                           <tr>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Name</th>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Phone</th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Points</th>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">First Purchase</th>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Last Purchase</th>
                           </tr>
@@ -375,6 +391,7 @@ export default function BillingPage() {
                             <tr key={c.id}>
                               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-neutral-900">{c.name}</td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{c.phone}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{c.points}</td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{formatDate(c.firstSeen)}</td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{formatDate(c.lastSeen)}</td>
                             </tr>
@@ -385,8 +402,15 @@ export default function BillingPage() {
                       <div className="md:hidden">
                         {customers.map(c => (
                            <div key={c.id} className="border-t border-neutral-200 p-4">
-                              <div className="font-semibold text-neutral-800">{c.name}</div>
-                              <div className="text-sm text-neutral-500">{c.phone}</div>
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <div className="font-semibold text-neutral-800">{c.name}</div>
+                                  <div className="text-sm text-neutral-500">{c.phone}</div>
+                                </div>
+                                <div className="text-right">
+                                   <div className="font-bold text-primary-700">{c.points} pts</div>
+                                </div>
+                              </div>
                               <div className="grid grid-cols-2 gap-4 mt-2 text-sm">
                                 <div>
                                   <div className="text-xs text-neutral-400">First Purchase</div>
