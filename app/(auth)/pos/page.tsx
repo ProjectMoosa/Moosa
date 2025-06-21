@@ -136,11 +136,18 @@ export default function POSPage() {
     if (!customerSnap.empty) {
       const customerDoc = customerSnap.docs[0];
       const customerData = customerDoc.data();
+      const customerId = customerDoc.id;
+      
       setCustomerName(customerData.name);
-      setCustomerInfoId(customerDoc.id);
-      setCustomerPoints(customerData.points || 0);
+      setCustomerInfoId(customerId);
 
-      // 2. Fetch their purchase history from the sales records
+      // 2. Calculate total points from the 'points' collection
+      const pointsQuery = query(collection(db, 'points'), where('customerId', '==', customerId));
+      const pointsSnap = await getDocs(pointsQuery);
+      const totalPoints = pointsSnap.docs.reduce((sum, doc) => sum + doc.data().pointsEarned, 0);
+      setCustomerPoints(totalPoints);
+
+      // 3. Fetch their purchase history from the sales records
       setHistoryLoading(true);
       const historyQuery = query(
           collection(db, 'customer_details'),
@@ -210,13 +217,19 @@ export default function POSPage() {
     // 5. Commit batch
     await batch.commit();
     
-    // 6. Update customer points if they are a registered customer
+    // 6. Add a record to the new 'points' collection if customer is registered
     if (customerInfoId) {
-      const customerRef = doc(db, 'customer_info', customerInfoId);
       const pointsFromSale = Math.floor(total / 200);
-      await updateDoc(customerRef, {
-        points: increment(pointsFromSale)
-      });
+      if (pointsFromSale > 0) {
+        await addDoc(collection(db, 'points'), {
+          vendorId: user.uid,
+          customerId: customerInfoId,
+          pointsEarned: pointsFromSale,
+          purchaseTotal: total,
+          purchaseRefId: saleData.purchaseRefId,
+          timestamp: saleTimestamp
+        });
+      }
     }
 
     if (andPrint) {
