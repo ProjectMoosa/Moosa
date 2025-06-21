@@ -142,7 +142,11 @@ export default function POSPage() {
       setCustomerInfoId(customerId);
 
       // 2. Calculate total points from the 'points' collection
-      const pointsQuery = query(collection(db, 'points'), where('customerId', '==', customerId));
+      const pointsQuery = query(
+        collection(db, 'points'), 
+        where('customerId', '==', customerId),
+        where('vendorId', '==', user.uid) // Added vendorId to comply with security rules
+      );
       const pointsSnap = await getDocs(pointsQuery);
       const totalPoints = pointsSnap.docs.reduce((sum, doc) => sum + doc.data().pointsEarned, 0);
       setCustomerPoints(totalPoints);
