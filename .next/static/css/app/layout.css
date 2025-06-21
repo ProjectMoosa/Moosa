@@ -585,6 +585,9 @@ video {
 .top-\[56px\] {
   top: 56px;
 }
+.right-2 {
+  right: 0.5rem;
+}
 .z-10 {
   z-index: 10;
 }

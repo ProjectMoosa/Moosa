@@ -380,12 +380,10 @@ export default function POSPage() {
                     <div 
                       key={item.id} 
                       onClick={() => addToCart(item)}
-                      className="bg-white rounded-lg p-3 border border-neutral-200 shadow-sm cursor-pointer hover:border-primary-500 hover:ring-1 hover:ring-primary-500"
+                      className="bg-white rounded-lg p-3 border border-neutral-200 shadow-sm cursor-pointer hover:border-primary-500 hover:ring-1 hover:ring-primary-500 relative"
                     >
-                      <div className="flex justify-between items-center">
-                        <h3 className="text-sm font-semibold text-neutral-800 truncate pr-2">{item.productName}</h3>
-                        <span className={`w-3 h-3 rounded-full ${status.color}`} title={status.text}></span>
-                      </div>
+                      <span className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full ${status.color}`} title={status.text}></span>
+                      <h3 className="text-sm font-semibold text-neutral-800 truncate pr-4">{item.productName}</h3>
                       <p className="text-sm text-neutral-600 mt-1">{formatCurrency(item.sellingPrice)}</p>
                       <p className="text-xs text-neutral-400 mt-1">Stock: {item.quantity}</p>
                     </div>
@@ -510,14 +508,12 @@ export default function POSPage() {
                 <div
                   key={item.id}
                   onClick={() => addToCart(item)}
-                  className={`bg-white p-3 rounded-lg shadow-sm cursor-pointer transition-transform transform hover:scale-105 border-2 ${
+                  className={`bg-white p-3 rounded-lg shadow-sm cursor-pointer transition-transform transform hover:scale-105 border-2 relative ${
                     cart.some(c => c.id === item.id) ? 'border-primary-500' : 'border-transparent'
                   } ${item.quantity === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  <div className="flex justify-between items-center">
-                    <div className="font-semibold text-sm truncate pr-2">{item.productName}</div>
-                    <span className={`w-3 h-3 rounded-full ${status.color}`} title={status.text}></span>
-                  </div>
+                  <span className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full ${status.color}`} title={status.text}></span>
+                  <div className="font-semibold text-sm truncate pr-4">{item.productName}</div>
                   <div className="text-xs text-neutral-500">{item.category}</div>
                   <div className="mt-2 text-right font-bold text-primary-700">{formatCurrency(item.sellingPrice)}</div>
                    {item.quantity < 10 && item.quantity > 0 && (
