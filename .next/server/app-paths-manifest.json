@@ -1,9 +1,7 @@
 {
-  "/not-found": "app/not-found.js",
-  "/(auth)/analytics/page": "app/(auth)/analytics/page.js",
   "/(auth)/stocks/page": "app/(auth)/stocks/page.js",
   "/(auth)/dashboard/page": "app/(auth)/dashboard/page.js",
+  "/(auth)/analytics/page": "app/(auth)/analytics/page.js",
   "/(auth)/billing/page": "app/(auth)/billing/page.js",
-  "/(auth)/notifications/page": "app/(auth)/notifications/page.js",
   "/(auth)/pos/page": "app/(auth)/pos/page.js"
 }

@@ -34,6 +34,7 @@ export default function CustomerRegistrationPage() {
         vendorId,
         name,
         phone,
+        points: 0, // Initialize points for new customer
         createdAt: Timestamp.now(),
       });
       setSuccess(true);

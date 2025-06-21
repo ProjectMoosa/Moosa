@@ -68,12 +68,15 @@ service cloud.firestore {
     }
     
     match /customer_info/{customerId} {
+      // Allow anyone to create a customer record (open registration)
       allow create: if request.resource.data.name is string
                     && request.resource.data.phone is string
                     && request.resource.data.vendorId is string
                     && request.resource.data.createdAt is timestamp
-                    && request.resource.data.points == 0;
+                    && (request.resource.data.points == 0 || request.resource.data.points == null);
+      // Only vendors can read their own customer data
       allow read: if request.auth.uid == resource.data.vendorId;
+      // Only vendors can update their own customer data
       allow update: if isVendor(request.auth.uid) && resource.data.vendorId == request.auth.uid || isAuthorizedSuperAdmin();
     }
 
