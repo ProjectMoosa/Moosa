@@ -56,6 +56,14 @@ interface SaleData {
   purchaseRefId: string;
 }
 
+interface StockBatch {
+  batchId: string;
+  quantity: number;
+  expiryDate?: string;
+  barcode?: string;
+  receivedDate?: string;
+}
+
 interface StockItem {
   id: string;
   productName: string;
@@ -64,6 +72,7 @@ interface StockItem {
   purchasePrice?: number;
   category?: string;
   lowStockThreshold?: number;
+  batches?: StockBatch[];
 }
 
 interface CustomerData {
@@ -463,11 +472,11 @@ export default function AnalyticsPage() {
                   ) : (
                     <ArrowDownRight className="w-3 h-3 sm:w-4 sm:h-4" />
                   )}
-                  {Math.abs(metrics.growthRate).toFixed(1)}%
+                  <span className="lato-regular">{Math.abs(metrics.growthRate).toFixed(1)}%</span>
                 </div>
               </div>
               <h3 className="text-lg sm:text-2xl font-bold text-neutral-900 mb-1">
-                {formatCurrency(metrics.totalRevenue)}
+                <span className="lato-regular">{formatCurrency(metrics.totalRevenue)}</span>
               </h3>
               <p className="text-xs sm:text-sm text-neutral-600">Total Revenue</p>
               <div className="absolute bottom-full mb-2 hidden group-hover:block w-64 bg-neutral-800 text-white text-xs rounded-lg p-2 shadow-lg z-10">
@@ -483,7 +492,7 @@ export default function AnalyticsPage() {
                 </div>
               </div>
               <h3 className="text-lg sm:text-2xl font-bold text-neutral-900 mb-1">
-                {formatCurrency(metrics.avgOrderValue)}
+                <span className="lato-regular">{formatCurrency(metrics.avgOrderValue)}</span>
               </h3>
               <p className="text-xs sm:text-sm text-neutral-600">Avg Order Value</p>
               <div className="absolute bottom-full mb-2 hidden group-hover:block w-64 bg-neutral-800 text-white text-xs rounded-lg p-2 shadow-lg z-10">
@@ -499,7 +508,7 @@ export default function AnalyticsPage() {
                 </div>
               </div>
               <h3 className="text-lg sm:text-2xl font-bold text-neutral-900 mb-1">
-                {metrics.uniqueCustomers}
+                <span className="lato-regular">{metrics.uniqueCustomers}</span>
               </h3>
               <p className="text-xs sm:text-sm text-neutral-600">Unique Customers</p>
               <div className="absolute bottom-full mb-2 hidden group-hover:block w-64 bg-neutral-800 text-white text-xs rounded-lg p-2 shadow-lg z-10">
@@ -515,7 +524,7 @@ export default function AnalyticsPage() {
                 </div>
               </div>
               <h3 className="text-lg sm:text-2xl font-bold text-neutral-900 mb-1">
-                {metrics.totalOrders}
+                <span className="lato-regular">{metrics.totalOrders}</span>
               </h3>
               <p className="text-xs sm:text-sm text-neutral-600">Total Orders</p>
               <div className="absolute bottom-full mb-2 hidden group-hover:block w-64 bg-neutral-800 text-white text-xs rounded-lg p-2 shadow-lg z-10">
@@ -697,7 +706,7 @@ export default function AnalyticsPage() {
                       {sale.cart && Array.isArray(sale.cart) ? sale.cart.length : 0} items
                     </td>
                     <td className="py-2 sm:py-3 px-2 sm:px-4 font-semibold text-neutral-900 text-xs sm:text-sm">
-                      {formatCurrency(sale.total || 0)}
+                      <span className="lato-regular">{formatCurrency(sale.total || 0)}</span>
                     </td>
                     <td className="py-2 sm:py-3 px-2 sm:px-4">
                       <span className="inline-flex items-center px-1.5 sm:px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-800">

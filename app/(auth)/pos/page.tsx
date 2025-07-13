@@ -4,10 +4,18 @@ import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, writeBatch, Timestamp, addDoc, orderBy, updateDoc, increment } from 'firebase/firestore';
 import { useUser } from '@/components/useUser';
 import { useRouter } from 'next/navigation';
-import { Search, ScanBarcode, ChevronDown, Repeat, AlertTriangle, X } from 'lucide-react';
+import { Search, ScanBarcode, ChevronDown, Repeat, AlertTriangle, X, Percent, Tag } from 'lucide-react';
 import BarcodeScanner from '@/components/BarcodeScanner';
 
 // Interfaces
+interface StockBatch {
+  batchId: string;
+  quantity: number;
+  expiryDate?: string;
+  barcode?: string;
+  receivedDate?: string;
+}
+
 interface StockItem {
   id: string;
   productName: string;
@@ -17,6 +25,7 @@ interface StockItem {
   category?: string;
   lowStockThreshold?: number;
   barcode?: string;
+  batches?: StockBatch[];
 }
 
 interface CartItem {
@@ -38,6 +47,7 @@ interface SaleData {
   }[];
   subtotal: number;
   tax: number;
+  discount: number;
   total: number;
   paymentMethod: string;
   customerName: string;
@@ -70,8 +80,15 @@ export default function POSPage() {
   const [purchaseHistory, setPurchaseHistory] = useState<SaleData[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isMobileSettingsOpen, setIsMobileSettingsOpen] = useState(false);
+  
+  // Tax and Discount State
+  const [taxPercentage, setTaxPercentage] = useState(0); // Default 0%
+  const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
+  const [discountValue, setDiscountValue] = useState(0);
 
-  const taxRate = 0.15; // 15%
+  // Add state for accordion
+  const [showTaxDiscount, setShowTaxDiscount] = useState(false);
 
   const hasLowStockItems = useMemo(() => {
     return stock.some(item => item.quantity > 0 && item.quantity < (item.lowStockThreshold || 5));
@@ -106,12 +123,24 @@ export default function POSPage() {
     }
   }, [user]);
     
-  const { subtotal, tax, total } = useMemo(() => {
+  const { subtotal, tax, total, discount } = useMemo(() => {
     const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
+    const taxRate = taxPercentage / 100;
     const tax = subtotal * taxRate;
-    const total = subtotal + tax;
-    return { subtotal, tax, total };
-  }, [cart, taxRate]);
+    
+    // Calculate discount
+    let discountAmount = 0;
+    if (discountValue > 0) {
+      if (discountType === 'percentage') {
+        discountAmount = subtotal * (discountValue / 100);
+      } else {
+        discountAmount = discountValue;
+      }
+    }
+    
+    const total = subtotal + tax - discountAmount;
+    return { subtotal, tax, total, discount: discountAmount };
+  }, [cart, taxPercentage, discountType, discountValue]);
 
   const initiateCheckout = () => {
     if (cart.length === 0) {
@@ -202,6 +231,7 @@ export default function POSPage() {
       }),
       subtotal: subtotal,
       tax: tax,
+      discount: discount,
       total: total,
       paymentMethod: paymentMethod,
       customerName: customerName || 'Guest',
@@ -482,15 +512,74 @@ export default function POSPage() {
                 </div>
               </div>
               <div className="p-5 bg-neutral-50 rounded-b-lg border-t border-neutral-200">
+                {/* Tax and Discount Controls */}
+                <div className="mb-2">
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between px-2 py-1 text-xs bg-neutral-100 rounded hover:bg-neutral-200 transition"
+                    onClick={() => setShowTaxDiscount((v) => !v)}
+                  >
+                    <span>
+                      <Percent className="inline w-4 h-4 mr-1 text-primary-600" /> Tax: {taxPercentage}%
+                      <span className="mx-2">|</span>
+                      <Tag className="inline w-4 h-4 mr-1 text-green-600" /> Discount: {discountValue}
+                      {discountType === 'percentage' ? '%' : 'LKR'}
+                    </span>
+                    <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${showTaxDiscount ? 'rotate-180' : ''}`} />
+                  </button>
+                  {showTaxDiscount && (
+                    <div className="mt-2 flex flex-col gap-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <Percent className="w-4 h-4 text-primary-600" />
+                        <input
+                          type="number"
+                          value={taxPercentage}
+                          onChange={(e) => setTaxPercentage(parseFloat(e.target.value) || 0)}
+                          className="w-16 px-2 py-1 border border-neutral-300 rounded text-xs"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                        />
+                        <span>%</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Tag className="w-4 h-4 text-green-600" />
+                        <input
+                          type="number"
+                          value={discountValue}
+                          onChange={(e) => setDiscountValue(parseFloat(e.target.value) || 0)}
+                          className="w-16 px-2 py-1 border border-neutral-300 rounded text-xs"
+                          min="0"
+                          step="0.01"
+                        />
+                        <select
+                          value={discountType}
+                          onChange={(e) => setDiscountType(e.target.value as 'percentage' | 'fixed')}
+                          className="px-1 py-1 border border-neutral-300 rounded text-xs"
+                        >
+                          <option value="percentage">%</option>
+                          <option value="fixed">LKR</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-neutral-600">Subtotal</span>
                     <span className="font-medium text-neutral-800">{formatCurrency(subtotal)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-neutral-600">Tax ({taxRate * 100}%)</span>
+                    <span className="text-neutral-600">Tax ({taxPercentage}%)</span>
                     <span className="font-medium text-neutral-800">{formatCurrency(tax)}</span>
                   </div>
+                  {discount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Discount ({discountType === 'percentage' ? `${discountValue}%` : 'Fixed'})</span>
+                      <span className="font-medium">-{formatCurrency(discount)}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex justify-between items-baseline mt-4 pt-4 border-t border-neutral-200">
                   <span className="text-lg font-bold text-neutral-900">Total</span>
@@ -515,6 +604,12 @@ export default function POSPage() {
         <header className="bg-white border-b border-neutral-200 p-4 flex items-center justify-between">
           <h1 className="text-xl font-bold text-neutral-800">Point of Sale</h1>
           <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsMobileSettingsOpen(true)}
+              className="px-3 py-1.5 text-sm font-medium bg-neutral-100 border border-neutral-200 rounded-lg hover:bg-neutral-200"
+            >
+              Tax/Discount
+            </button>
             <button 
               onClick={openCustomerModal}
               className="px-3 py-1.5 text-sm font-medium bg-neutral-100 border border-neutral-200 rounded-lg hover:bg-neutral-200"
@@ -641,6 +736,24 @@ export default function POSPage() {
         {/* Checkout Footer - positioned at bottom of content */}
         {cart.length > 0 && (
           <div className="bg-white border-t border-neutral-200 shadow-lg p-4 mt-auto">
+            {/* Tax and Discount Summary for Mobile */}
+            <div className="mb-3 text-xs space-y-1">
+              <div className="flex justify-between text-neutral-600">
+                <span>Subtotal</span>
+                <span className="lato-regular">{formatCurrency(subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-neutral-600">
+                <span>Tax ({taxPercentage}%)</span>
+                <span className="lato-regular">{formatCurrency(tax)}</span>
+              </div>
+              {discount > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Discount</span>
+                  <span className="lato-regular">-{formatCurrency(discount)}</span>
+                </div>
+              )}
+            </div>
+            
             <div className="flex justify-between items-center">
               <div className="flex-1">
                 <div className="text-sm text-neutral-600">
@@ -786,6 +899,91 @@ export default function POSPage() {
           onScanSuccess={handleScanSuccess}
           onClose={handleScannerClose}
         />
+      )}
+
+      {/* Mobile Settings Modal */}
+      {isMobileSettingsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg shadow-2xl p-6 w-full max-w-sm mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-neutral-800">Tax & Discount Settings</h2>
+              <button onClick={() => setIsMobileSettingsOpen(false)}><X className="w-5 h-5 text-neutral-500"/></button>
+            </div>
+            
+            <div className="space-y-4">
+              {/* Tax Percentage */}
+              <div>
+                <label className="text-sm font-medium text-neutral-700">Tax Percentage</label>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="number"
+                    value={taxPercentage}
+                    onChange={(e) => setTaxPercentage(parseFloat(e.target.value) || 0)}
+                    className="flex-1 px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                  />
+                  <span className="text-sm text-neutral-500">%</span>
+                </div>
+              </div>
+              
+              {/* Discount */}
+              <div>
+                <label className="text-sm font-medium text-neutral-700">Discount</label>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="number"
+                    value={discountValue}
+                    onChange={(e) => setDiscountValue(parseFloat(e.target.value) || 0)}
+                    className="flex-1 px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    min="0"
+                    step="0.01"
+                  />
+                  <select
+                    value={discountType}
+                    onChange={(e) => setDiscountType(e.target.value as 'percentage' | 'fixed')}
+                    className="px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="percentage">%</option>
+                    <option value="fixed">LKR</option>
+                  </select>
+                </div>
+              </div>
+              
+              {/* Summary */}
+              <div className="bg-neutral-50 p-3 rounded-lg">
+                <div className="text-sm space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600">Subtotal</span>
+                    <span className="lato-regular">{formatCurrency(subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600">Tax ({taxPercentage}%)</span>
+                    <span className="lato-regular">{formatCurrency(tax)}</span>
+                  </div>
+                  {discount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Discount</span>
+                      <span className="lato-regular">-{formatCurrency(discount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between pt-1 border-t border-neutral-200">
+                    <span className="font-bold">Total</span>
+                    <span className="font-bold">{formatCurrency(total)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <button
+              onClick={() => setIsMobileSettingsOpen(false)}
+              className="mt-6 w-full px-4 py-2 text-sm font-semibold text-white bg-primary-700 rounded-lg shadow-sm hover:bg-primary-800"
+            >
+              Done
+            </button>
+          </div>
+        </div>
       )}
     </>
   );

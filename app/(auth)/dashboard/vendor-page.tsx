@@ -65,23 +65,23 @@ export default function VendorDashboardPage() {
       <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
         <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-5 flex flex-col gap-1">
           <div className="text-sm text-neutral-500 font-medium">Total Stock Value</div>
-          <div className="text-xl font-bold text-neutral-900">{loading ? '-' : `LKR ${totalStockValue?.toLocaleString()}`}</div>
+          <div className="text-xl font-bold text-neutral-900 lato-regular">{loading ? '-' : `LKR ${totalStockValue?.toLocaleString()}`}</div>
         </div>
         <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-5 flex flex-col gap-1">
           <div className="text-sm text-neutral-500 font-medium">Total Profit Value</div>
-          <div className="text-xl font-bold text-green-700">{loading ? '-' : `LKR ${totalProfitValue?.toLocaleString()}`}</div>
+          <div className="text-xl font-bold text-green-700 lato-regular">{loading ? '-' : `LKR ${totalProfitValue?.toLocaleString()}`}</div>
         </div>
         <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-5 flex flex-col gap-1">
           <div className="text-sm text-neutral-500 font-medium">Stock Count</div>
-          <div className="text-xl font-bold text-neutral-900">{loading ? '-' : stockCount}</div>
+          <div className="text-xl font-bold text-neutral-900 lato-regular">{loading ? '-' : stockCount}</div>
         </div>
         <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-5 flex flex-col gap-1">
           <div className="text-sm text-neutral-500 font-medium">Low Stock Items</div>
-          <div className="text-xl font-bold text-yellow-700">{loading ? '-' : lowStockItems}</div>
+          <div className="text-xl font-bold text-yellow-700 lato-regular">{loading ? '-' : lowStockItems}</div>
         </div>
         <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-5 flex flex-col gap-1">
           <div className="text-sm text-neutral-500 font-medium">Out of Stock Items</div>
-          <div className="text-xl font-bold text-red-700">{loading ? '-' : outOfStockItems}</div>
+          <div className="text-xl font-bold text-red-700 lato-regular">{loading ? '-' : outOfStockItems}</div>
         </div>
         <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-5 flex flex-col gap-1 col-span-1 sm:col-span-2 md:col-span-1">
           <div className="text-sm text-neutral-500 font-medium">Subscription Status</div>
@@ -137,8 +137,8 @@ export default function VendorDashboardPage() {
                 {paginatedLowStockList.map((item, idx) => (
                   <li key={idx} className="py-2 flex flex-col xs:grid xs:grid-cols-12 gap-1 xs:gap-2 items-start xs:items-center">
                     <span className="font-medium text-neutral-900 xs:col-span-6 truncate w-full xs:w-auto">{item.productName}</span>
-                    <span className="text-yellow-700 font-semibold xs:col-span-3 xs:text-right">Qty: {item.quantity}</span>
-                    <span className="text-xs text-neutral-500 xs:col-span-3 xs:text-right">Threshold: {item.lowStockThreshold || 5}</span>
+                    <span className="text-yellow-700 font-semibold xs:col-span-3 xs:text-right lato-regular">Qty: {item.quantity}</span>
+                    <span className="text-xs text-neutral-500 xs:col-span-3 xs:text-right lato-regular">Threshold: {item.lowStockThreshold || 5}</span>
                   </li>
                 ))}
               </ul>

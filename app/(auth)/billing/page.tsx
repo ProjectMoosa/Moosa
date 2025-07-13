@@ -293,11 +293,13 @@ export default function BillingPage() {
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900">{formatDate(s.timestamp)}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900">{s.customerName}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900 text-center">
-                                  {itemsSoldDisplay}
+                                  <span className="lato-regular">{itemsSoldDisplay}</span>
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900 text-right">{formatCurrency(s.total)}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900 text-right">
-                                  {calculateProfit(s.items) !== null ? formatCurrency(calculateProfit(s.items)!) : 'N/A'}
+                                  <span className="lato-regular">{formatCurrency(s.total)}</span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900 text-right">
+                                  {calculateProfit(s.items) !== null ? <span className="lato-regular">{formatCurrency(calculateProfit(s.items)!)}</span> : 'N/A'}
                                 </td>
                               </tr>
                             )})}
@@ -324,12 +326,14 @@ export default function BillingPage() {
                                       <div className="text-xs text-neutral-500">{formatDate(s.timestamp)}</div>
                                     </div>
                                     <div className="text-right">
-                                      <div className="font-bold text-lg">{formatCurrency(s.total)}</div>
-                                      {profit !== null && <div className="text-xs text-green-600">Profit: {formatCurrency(profit)}</div>}
+                                      <div className="font-bold text-lg">
+                                        <span className="lato-regular">{formatCurrency(s.total)}</span>
+                                      </div>
+                                      {profit !== null && <div className="text-xs text-green-600">Profit: <span className="lato-regular">{formatCurrency(profit)}</span></div>}
                                     </div>
                                   </div>
                                   <div className="text-center mt-2 text-sm">
-                                    Items Sold: {itemsSoldDisplay}
+                                    Items Sold: <span className="lato-regular">{itemsSoldDisplay}</span>
                                   </div>
                                 </div>
                               )
@@ -391,9 +395,15 @@ export default function BillingPage() {
                             <tr key={c.id}>
                               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-neutral-900">{c.name}</td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{c.phone}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{c.points}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{formatDate(c.firstSeen)}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{formatDate(c.lastSeen)}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
+                                <span className="lato-regular">{c.points}</span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
+                                {formatDate(c.firstSeen)}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
+                                {formatDate(c.lastSeen)}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -408,7 +418,9 @@ export default function BillingPage() {
                                   <div className="text-sm text-neutral-500">{c.phone}</div>
                                 </div>
                                 <div className="text-right">
-                                   <div className="font-bold text-primary-700">{c.points} pts</div>
+                                   <div className="font-bold text-primary-700">
+                                     <span className="lato-regular">{c.points} pts</span>
+                                   </div>
                                 </div>
                               </div>
                               <div className="grid grid-cols-2 gap-4 mt-2 text-sm">

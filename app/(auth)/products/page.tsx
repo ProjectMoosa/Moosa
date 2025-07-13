@@ -4,6 +4,8 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, DocumentData } 
 import { db } from "@/lib/firebase";
 import { useUser } from '@/components/useUser';
 import { useRouter } from 'next/navigation';
+import { Search } from "lucide-react";
+import { Plus } from "lucide-react";
 
 interface Product {
   id?: string;
@@ -35,7 +37,7 @@ export default function ProductsPage() {
   const [sortBy, setSortBy] = useState<keyof Product | "">("");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const [pageSize, setPageSize] = useState(10);
   const [visibleCols, setVisibleCols] = useState({
     brand: true,
     category: true,
@@ -43,6 +45,7 @@ export default function ProductsPage() {
   });
   const [showColumnsDropdown, setShowColumnsDropdown] = useState(false);
   const columnsDropdownRef = useRef<HTMLDivElement>(null);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!loading && role === 'vendor') {
@@ -146,7 +149,18 @@ export default function ProductsPage() {
       setSortDir("asc");
     }
   }
-  const sortedProducts = [...products].sort((a, b) => {
+  // Filtered and sorted products
+  const filteredProducts = products.filter((product) => {
+    const searchLower = search.toLowerCase();
+    return (
+      searchLower === "" ||
+      product.name.toLowerCase().includes(searchLower) ||
+      product.brand.toLowerCase().includes(searchLower) ||
+      product.category.toLowerCase().includes(searchLower) ||
+      product.description.toLowerCase().includes(searchLower)
+    );
+  });
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
     if (!sortBy) return 0;
     const aVal = a[sortBy] ?? "";
     const bVal = b[sortBy] ?? "";
@@ -168,8 +182,25 @@ export default function ProductsPage() {
   return (
     <div className="max-w-7xl mx-auto px-2 sm:px-4 md:px-8 py-6 sm:py-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
-        <h1 className="text-2xl font-bold text-neutral-900">Products / Stock</h1>
-        <div className="flex flex-wrap gap-2 items-center">
+        {/* Left: Heading + Search */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-1">
+          <h1 className="text-2xl font-bold text-neutral-900 whitespace-nowrap">Products / Stock</h1>
+          <div className="relative w-full sm:w-64">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+              <Search className="w-4 h-4 text-neutral-400" />
+            </span>
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              className="pl-10 pr-3 py-2 text-sm border border-neutral-200 rounded-full bg-neutral-50 focus:bg-white focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all duration-200 shadow-sm focus:shadow-lg placeholder-neutral-400"
+              style={{ minWidth: 0 }}
+            />
+          </div>
+        </div>
+        {/* Right: Actions */}
+        <div className="flex flex-wrap gap-2 items-center mt-2 sm:mt-0">
           <div className="relative" ref={columnsDropdownRef}>
             <button className="bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium px-3 py-2 rounded-md text-sm border border-neutral-200 transition-colors" type="button" onClick={() => setShowColumnsDropdown((v) => !v)}>
               Columns
@@ -214,7 +245,7 @@ export default function ProductsPage() {
               <div className="font-bold text-lg mb-1">{product.name}</div>
               <div className="text-sm text-neutral-500 mb-1">Brand: {product.brand}</div>
               <div className="text-sm text-neutral-500 mb-1">Category: {product.category}</div>
-              <div className="text-sm text-neutral-500 mb-2">Price: LKR {product.price}</div>
+              <div className="lato-regular text-sm text-neutral-800 mb-1">Rs {product.price.toLocaleString()}.00</div>
               <div className="flex gap-2 mt-2">
                 <button
                   className="px-3 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 text-xs font-medium transition-colors"
@@ -235,6 +266,20 @@ export default function ProductsPage() {
         )}
         {/* Pagination Controls for mobile */}
         <div className="flex flex-col xs:flex-row justify-between items-center gap-2 px-2 py-3 border-t border-neutral-100 bg-neutral-50">
+          <div className="flex items-center gap-2 w-full xs:w-auto justify-start">
+            <label htmlFor="pageSizeMobile" className="text-xs text-neutral-500">Show</label>
+            <select
+              id="pageSizeMobile"
+              value={pageSize}
+              onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}
+              className="border border-neutral-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary-500"
+            >
+              {[5, 10, 20, 50, 100].map(size => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+            <span className="text-xs text-neutral-500">per page</span>
+          </div>
           <span className="text-xs text-neutral-500">Page {page} of {totalPages}</span>
           <div className="flex gap-2">
             <button
@@ -285,7 +330,7 @@ export default function ProductsPage() {
                   {visibleCols.category && <td className="px-4 py-3">{product.category}</td>}
                   {/* Hide description on md and below */}
                   {visibleCols.description && <td className="px-4 py-3 hidden lg:table-cell">{product.description}</td>}
-                  <td className="px-4 py-3">{product.price}</td>
+                  <td className="px-4 py-3 lato-regular text-sm text-neutral-800">Rs {product.price.toLocaleString()}.00</td>
                   <td className="px-4 py-3 flex gap-2">
                     <button
                       className="px-3 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 text-xs font-medium transition-colors"
@@ -308,6 +353,20 @@ export default function ProductsPage() {
         </table>
         {/* Pagination Controls for tablet/desktop */}
         <div className="flex flex-col xs:flex-row justify-between items-center gap-2 px-4 py-3 border-t border-neutral-100 bg-neutral-50">
+          <div className="flex items-center gap-2 w-full xs:w-auto justify-start">
+            <label htmlFor="pageSizeDesktop" className="text-xs text-neutral-500">Show</label>
+            <select
+              id="pageSizeDesktop"
+              value={pageSize}
+              onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}
+              className="border border-neutral-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary-500"
+            >
+              {[5, 10, 20, 50, 100].map(size => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+            <span className="text-xs text-neutral-500">per page</span>
+          </div>
           <span className="text-xs text-neutral-500">Page {page} of {totalPages}</span>
           <div className="flex gap-2">
             <button
@@ -327,6 +386,15 @@ export default function ProductsPage() {
           </div>
         </div>
       </div>
+      {/* Floating Add Product Button */}
+      <button
+        className="fixed bottom-8 right-6 z-50 w-14 h-14 rounded-full bg-primary-700 text-white shadow-xl flex items-center justify-center hover:bg-primary-800 hover:scale-110 active:scale-95 transition-all duration-150 border-4 border-white"
+        style={{ boxShadow: '0 4px 16px 0 rgba(60, 60, 60, 0.10)' }}
+        onClick={() => openModal()}
+        aria-label="Add Product"
+      >
+        <Plus className="w-7 h-7" />
+      </button>
       {/* Modal for Add/Edit */}
       {modalOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-30 px-2">

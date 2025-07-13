@@ -1,5 +1,10 @@
 {
   "pages": {
+    "/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/page.js"
+    ],
     "/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
@@ -11,35 +16,25 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(auth)/layout.js"
     ],
-    "/(auth)/pos/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(auth)/pos/page.js"
-    ],
-    "/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/page.js"
-    ],
     "/(auth)/dashboard/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(auth)/dashboard/page.js"
     ],
-    "/(auth)/analytics/page": [
+    "/(auth)/products/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(auth)/analytics/page.js"
+      "static/chunks/app/(auth)/products/page.js"
     ],
-    "/(auth)/stocks/page": [
+    "/(auth)/subscriptions/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(auth)/stocks/page.js"
+      "static/chunks/app/(auth)/subscriptions/page.js"
     ],
-    "/(auth)/notifications/page": [
+    "/(auth)/vendors/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(auth)/notifications/page.js"
+      "static/chunks/app/(auth)/vendors/page.js"
     ],
     "/(auth)/billing/page": [
       "static/chunks/webpack.js",
@@ -50,6 +45,26 @@
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(auth)/orders/page.js"
+    ],
+    "/(auth)/analytics/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(auth)/analytics/page.js"
+    ],
+    "/(auth)/pos/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(auth)/pos/page.js"
+    ],
+    "/(auth)/stocks/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(auth)/stocks/page.js"
+    ],
+    "/(auth)/notifications/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(auth)/notifications/page.js"
     ]
   }
 }

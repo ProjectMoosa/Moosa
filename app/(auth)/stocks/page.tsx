@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, doc, updateDoc, addDoc, startAt, endAt, orderBy, limit, deleteDoc } from "firebase/firestore";
 import { useUser } from '@/components/useUser';
@@ -7,6 +7,14 @@ import Container from '@/components/Container';
 import { Timestamp } from "firebase/firestore";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import { ScanLine } from "lucide-react";
+
+interface StockBatch {
+  batchId: string;
+  quantity: number;
+  expiryDate?: string;
+  barcode?: string;
+  receivedDate?: string;
+}
 
 interface VendorStock {
   id: string;
@@ -17,6 +25,7 @@ interface VendorStock {
   category?: string;
   lowStockThreshold?: number;
   barcode?: string;
+  batches?: StockBatch[];
 }
 
 interface StockForm {
@@ -259,43 +268,34 @@ export default function VendorStocksPage() {
     if (!showSuggestions) setHighlightedIndex(-1);
   }, [showSuggestions, productSuggestions]);
 
-  // Filtering, sorting, and pagination
-  let filteredStocks = stocks.filter(s => {
-    const profitMargin = s.costPrice ? ((s.sellingPrice - s.costPrice) / s.costPrice) * 100 : 0;
-    const isLowStock = s.quantity < (s.lowStockThreshold || 5) && s.quantity > 0;
-    const isOutOfStock = s.quantity === 0;
-    let statusMatch = true;
-    if (filterStatus === "in") statusMatch = !isLowStock && !isOutOfStock;
-    if (filterStatus === "low") statusMatch = isLowStock;
-    if (filterStatus === "out") statusMatch = isOutOfStock;
-    return (
-      (!search || s.productName.toLowerCase().includes(search.toLowerCase()) || (s.category || '').toLowerCase().includes(search.toLowerCase()) || (s.barcode || '').toLowerCase().includes(search.toLowerCase())) &&
-      (!filterCategory || s.category === filterCategory) &&
-      statusMatch
-    );
-  });
-  if (sortBy) {
-    filteredStocks = filteredStocks.sort((a, b) => {
-      let aVal: number | string = '';
-      let bVal: number | string = '';
-      if (sortBy === 'profitMargin') {
-        aVal = a.costPrice ? ((a.sellingPrice - a.costPrice) / a.costPrice) * 100 : 0;
-        bVal = b.costPrice ? ((b.sellingPrice - b.costPrice) / b.costPrice) * 100 : 0;
-      } else if (sortBy === 'productName' || sortBy === 'category') {
-        aVal = (a[sortBy as keyof VendorStock] as string) || '';
-        bVal = (b[sortBy as keyof VendorStock] as string) || '';
-      } else {
-        aVal = (a[sortBy as keyof VendorStock] as number) || 0;
-        bVal = (b[sortBy as keyof VendorStock] as number) || 0;
-      }
-      if (typeof aVal === 'string' && typeof bVal === 'string') {
-        return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-      }
-      return sortDir === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
-    });
-  }
-  const totalPages = Math.ceil(filteredStocks.length / pageSize);
-  const paginatedStocks = filteredStocks.slice((page - 1) * pageSize, page * pageSize);
+  const filteredStocks = useMemo(() => {
+    return stocks
+      .filter(stock => {
+        // Search filter
+        const searchLower = search.toLowerCase();
+        return searchLower === '' || 
+               stock.productName.toLowerCase().includes(searchLower) ||
+               (stock.barcode && stock.barcode.toLowerCase().includes(searchLower));
+      })
+      .filter(stock => {
+        // Category filter
+        return filterCategory === '' || stock.category === filterCategory;
+      })
+      .filter(stock => {
+        // Status filter
+        if (filterStatus === '') return true;
+        const isLow = stock.quantity < (stock.lowStockThreshold || 5);
+        if (filterStatus === 'low') return stock.quantity > 0 && isLow;
+        if (filterStatus === 'out') return stock.quantity === 0;
+        if (filterStatus === 'in') return stock.quantity > 0 && !isLow;
+        return true;
+      });
+  }, [stocks, search, filterCategory, filterStatus]);
+  
+  const categories = useMemo(() => {
+    const uniqueCategories = new Set(stocks.map(s => s.category).filter(Boolean));
+    return ['', ...Array.from(uniqueCategories)]; // Add "All" option
+  }, [stocks]);
 
   const handleDelete = async (stock: VendorStock) => {
     if (window.confirm(`Are you sure you want to delete "${stock.productName}" from your stock?`)) {
@@ -325,32 +325,28 @@ export default function VendorStocksPage() {
         </div>
         
         {/* Filters and Search */}
-        <div className="mb-4 flex flex-wrap items-center gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <input 
             type="text" 
-            placeholder="Search by name or category..." 
-            className="border border-neutral-200 rounded-md px-3 py-2 w-full md:w-1/3" 
+            placeholder="Search by name or barcode..." 
             value={search} 
-            onChange={e => setSearch(e.target.value)} 
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full px-4 py-2 border rounded-lg col-span-1 md:col-span-1"
           />
           <select 
-            className="border border-neutral-200 rounded-md px-3 py-2" 
             value={filterCategory} 
-            onChange={e => setFilterCategory(e.target.value)}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            className="w-full px-4 py-2 border rounded-lg col-span-1 md:col-span-1"
           >
             <option value="">All Categories</option>
-            {COSMETIC_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            {categories.map(cat => cat && <option key={cat} value={cat}>{cat}</option>)}
           </select>
-          <select 
-            className="border border-neutral-200 rounded-md px-3 py-2" 
-            value={filterStatus} 
-            onChange={e => setFilterStatus(e.target.value)}
-          >
-            <option value="">All Statuses</option>
-            <option value="in">In Stock</option>
-            <option value="low">Low Stock</option>
-            <option value="out">Out of Stock</option>
-          </select>
+          <div className="flex items-center gap-2 bg-neutral-100 p-1 rounded-lg col-span-1 md:col-span-1">
+            <button onClick={() => setFilterStatus("")} className={`flex-1 py-1 px-2 text-sm rounded-md ${filterStatus === "" ? 'bg-white shadow-sm' : ''}`}>All</button>
+            <button onClick={() => setFilterStatus("in")} className={`flex-1 py-1 px-2 text-sm rounded-md ${filterStatus === "in" ? 'bg-white shadow-sm' : ''}`}>In Stock</button>
+            <button onClick={() => setFilterStatus("low")} className={`flex-1 py-1 px-2 text-sm rounded-md ${filterStatus === "low" ? 'bg-white shadow-sm' : ''}`}>Low</button>
+            <button onClick={() => setFilterStatus("out")} className={`flex-1 py-1 px-2 text-sm rounded-md ${filterStatus === "out" ? 'bg-white shadow-sm' : ''}`}>Out</button>
+          </div>
         </div>
 
         {loadingStocks ? (
@@ -376,7 +372,7 @@ export default function VendorStocksPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedStocks.map(s => {
+                  {filteredStocks.map(s => {
                     const profitMargin = s.costPrice ? ((s.sellingPrice - s.costPrice) / s.costPrice) * 100 : 0;
                     const isLowStock = s.quantity < (s.lowStockThreshold || 5) && s.quantity > 0;
                     const isOutOfStock = s.quantity === 0;
@@ -384,10 +380,10 @@ export default function VendorStocksPage() {
                       <tr key={s.id} className="border-t border-neutral-100">
                         <td className="px-4 py-3 font-medium text-neutral-800">{s.productName}</td>
                         <td className="px-4 py-3 text-neutral-600">{s.category || '-'}</td>
-                        <td className="px-4 py-3 text-neutral-600">{s.quantity}</td>
-                        <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">LKR {s.costPrice.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">LKR {s.sellingPrice.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-neutral-600">{profitMargin.toFixed(1)}%</td>
+                        <td className="px-4 py-3 text-neutral-600 lato-regular">{s.quantity}</td>
+                        <td className="px-4 py-3 text-neutral-600 whitespace-nowrap lato-regular">LKR {s.costPrice.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-neutral-600 whitespace-nowrap lato-regular">LKR {s.sellingPrice.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-neutral-600 lato-regular">{profitMargin.toFixed(1)}%</td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           {isOutOfStock ? (
                             <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-semibold">Out of Stock</span>
@@ -409,7 +405,7 @@ export default function VendorStocksPage() {
               </table>
               {/* Mobile Cards */}
               <div className="lg:hidden">
-                {paginatedStocks.map(s => {
+                {filteredStocks.map(s => {
                   const profitMargin = s.costPrice ? ((s.sellingPrice - s.costPrice) / s.costPrice) * 100 : 0;
                   const isLowStock = s.quantity < (s.lowStockThreshold || 5) && s.quantity > 0;
                   const isOutOfStock = s.quantity === 0;
@@ -433,19 +429,19 @@ export default function VendorStocksPage() {
                       <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
                         <div>
                           <div className="text-neutral-500 text-xs">Quantity</div>
-                          <div>{s.quantity}</div>
+                          <div className="lato-regular">{s.quantity}</div>
                         </div>
                         <div>
                           <div className="text-neutral-500 text-xs">Cost Price</div>
-                          <div>LKR {s.costPrice.toLocaleString()}</div>
+                          <div className="lato-regular">LKR {s.costPrice.toLocaleString()}</div>
                         </div>
                         <div>
                           <div className="text-neutral-500 text-xs">Selling Price</div>
-                          <div>LKR {s.sellingPrice.toLocaleString()}</div>
+                          <div className="lato-regular">LKR {s.sellingPrice.toLocaleString()}</div>
                         </div>
                         <div>
                           <div className="text-neutral-500 text-xs">Profit Margin</div>
-                          <div>{profitMargin.toFixed(1)}%</div>
+                          <div className="lato-regular">{profitMargin.toFixed(1)}%</div>
                         </div>
                       </div>
                       <div className="mt-4 text-sm">
@@ -463,7 +459,7 @@ export default function VendorStocksPage() {
             </div>
             {/* Pagination */}
             <div className="mt-6 flex justify-between items-center">
-              <span className="text-xs text-neutral-500">Page {page} of {totalPages}</span>
+              <span className="text-xs text-neutral-500">Page {page} of {Math.ceil(filteredStocks.length / pageSize)}</span>
               <div className="flex gap-2">
                 <button
                   className="px-3 py-1 rounded-md border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100 text-xs font-medium"
@@ -474,8 +470,8 @@ export default function VendorStocksPage() {
                 </button>
                 <button
                   className="px-3 py-1 rounded-md border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100 text-xs font-medium"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
+                  onClick={() => setPage((p) => Math.min(Math.ceil(filteredStocks.length / pageSize), p + 1))}
+                  disabled={page === Math.ceil(filteredStocks.length / pageSize)}
                 >
                   Next
                 </button>
@@ -491,19 +487,19 @@ export default function VendorStocksPage() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Quantity</label>
-                  <input type="number" name="quantity" value={form.quantity} onChange={handleEditChange} className="w-full border border-neutral-200 rounded-md px-3 py-2" />
+                  <input type="number" name="quantity" value={form.quantity} onChange={handleEditChange} className="w-full border border-neutral-200 rounded-md px-3 py-2 lato-regular" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Cost Price</label>
-                  <input type="number" name="costPrice" value={form.costPrice} onChange={handleEditChange} className="w-full border border-neutral-200 rounded-md px-3 py-2" />
+                  <input type="number" name="costPrice" value={form.costPrice} onChange={handleEditChange} className="w-full border border-neutral-200 rounded-md px-3 py-2 lato-regular" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Selling Price</label>
-                  <input type="number" name="sellingPrice" value={form.sellingPrice} onChange={handleEditChange} className="w-full border border-neutral-200 rounded-md px-3 py-2" />
+                  <input type="number" name="sellingPrice" value={form.sellingPrice} onChange={handleEditChange} className="w-full border border-neutral-200 rounded-md px-3 py-2 lato-regular" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Low Stock Threshold</label>
-                  <input type="number" name="lowStockThreshold" value={form.lowStockThreshold} onChange={handleEditChange} className="w-full border border-neutral-200 rounded-md px-3 py-2" />
+                  <input type="number" name="lowStockThreshold" value={form.lowStockThreshold} onChange={handleEditChange} className="w-full border border-neutral-200 rounded-md px-3 py-2 lato-regular" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Barcode (optional)</label>
@@ -562,19 +558,19 @@ export default function VendorStocksPage() {
                 <div className="relative">
                   <input type="number" name="quantity" value={addForm.quantity} onChange={handleAddChange} required min={0}
                     onFocus={handleAddFocus}
-                    className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all placeholder-transparent" placeholder="Quantity" />
+                    className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all placeholder-transparent lato-regular" placeholder="Quantity" />
                   <label className="absolute left-3 top-2 text-xs text-neutral-500 transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-2 peer-focus:text-xs bg-white px-1">Quantity</label>
                 </div>
                 <div className="relative">
                   <input type="number" name="costPrice" value={addForm.costPrice} onChange={handleAddChange} required min={0}
                     onFocus={handleAddFocus}
-                    className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all placeholder-transparent" placeholder="Cost Price" />
+                    className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all placeholder-transparent lato-regular" placeholder="Cost Price" />
                   <label className="absolute left-3 top-2 text-xs text-neutral-500 transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-2 peer-focus:text-xs bg-white px-1">Cost Price</label>
                 </div>
                 <div className="relative">
                   <input type="number" name="sellingPrice" value={addForm.sellingPrice} onChange={handleAddChange} required min={0}
                     onFocus={handleAddFocus}
-                    className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all placeholder-transparent" placeholder="Selling Price" />
+                    className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all placeholder-transparent lato-regular" placeholder="Selling Price" />
                   <label className="absolute left-3 top-2 text-xs text-neutral-500 transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-2 peer-focus:text-xs bg-white px-1">Selling Price</label>
                 </div>
                 <div className="relative">
@@ -587,7 +583,7 @@ export default function VendorStocksPage() {
                 </div>
                 <div className="relative">
                   <input type="number" name="lowStockThreshold" value={addForm.lowStockThreshold} onChange={handleAddChange} required min={1}
-                    className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all placeholder-transparent" placeholder="Low Stock Threshold" />
+                    className="peer w-full border border-neutral-200 rounded-lg px-3 pt-6 pb-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all placeholder-transparent lato-regular" placeholder="Low Stock Threshold" />
                   <label className="absolute left-3 top-2 text-xs text-neutral-500 transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-2 peer-focus:text-xs bg-white px-1">Low Stock Threshold</label>
                 </div>
                 <div className="flex justify-end gap-2 mt-8">

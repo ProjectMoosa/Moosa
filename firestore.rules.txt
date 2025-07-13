@@ -102,6 +102,11 @@ service cloud.firestore {
       allow update, delete: if isAuthorizedSuperAdmin();
     }
     
+    match /vendor_orders/{orderId} {
+      allow read, write: if request.auth.uid == resource.data.vendorId;
+      allow create: if request.auth.uid == request.resource.data.vendorId;
+    }
+    
     match /subscription_plans/{planId} {
       allow read, write: if isAuthorizedSuperAdmin();
     }
