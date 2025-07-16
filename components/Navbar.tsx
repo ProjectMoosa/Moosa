@@ -18,6 +18,17 @@ export default function Navbar() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [signingOut, setSigningOut] = useState(false);
 
+  // Don't render until user context is loaded
+  if (loading) {
+    return (
+      <nav className="sticky top-0 z-30 w-full bg-white border-b border-neutral-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-center">
+          <div className="text-neutral-500">Loading...</div>
+        </div>
+      </nav>
+    );
+  }
+
   useEffect(() => {
     if (role === 'vendor' && user) {
       const q = query(
