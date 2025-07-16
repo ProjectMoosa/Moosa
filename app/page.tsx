@@ -60,21 +60,6 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="appearance-none block w-full px-3 py-2 border border-neutral-200 rounded-lg shadow-sm placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm transition-colors"
-                  style={{
-                    outline: 'none',
-                    borderColor: '#d1d5db',
-                    transition: 'all 0.2s ease-in-out'
-                  }}
-                  onFocus={(e) => {
-                    e.target.style.outline = 'none';
-                    e.target.style.borderColor = '#3b82f6';
-                    e.target.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.2)';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.outline = 'none';
-                    e.target.style.borderColor = '#d1d5db';
-                    e.target.style.boxShadow = 'none';
-                  }}
                 />
               </div>
             </div>
@@ -93,21 +78,6 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="appearance-none block w-full px-3 py-2 border border-neutral-200 rounded-lg shadow-sm placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm transition-colors"
-                  style={{
-                    outline: 'none',
-                    borderColor: '#d1d5db',
-                    transition: 'all 0.2s ease-in-out'
-                  }}
-                  onFocus={(e) => {
-                    e.target.style.outline = 'none';
-                    e.target.style.borderColor = '#3b82f6';
-                    e.target.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.2)';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.outline = 'none';
-                    e.target.style.borderColor = '#d1d5db';
-                    e.target.style.boxShadow = 'none';
-                  }}
                 />
               </div>
             </div>
@@ -123,17 +93,6 @@ export default function LoginPage() {
                 type="submit"
                 disabled={loading}
                 className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                style={{
-                  outline: 'none'
-                }}
-                onFocus={(e) => {
-                  e.target.style.outline = 'none';
-                  e.target.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.2)';
-                }}
-                onBlur={(e) => {
-                  e.target.style.outline = 'none';
-                  e.target.style.boxShadow = 'none';
-                }}
               >
                 {loading ? 'Signing in...' : 'Sign in'}
               </button>
