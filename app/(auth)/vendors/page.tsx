@@ -603,22 +603,6 @@ export default function VendorsPage() {
               <div className="flex gap-2 mt-2 flex-wrap">
                 <button className="px-3 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 text-xs font-medium transition-colors" onClick={() => openViewModal(v)}>View</button>
                 <button className="px-3 py-1 rounded-md bg-yellow-50 text-yellow-700 border border-yellow-100 hover:bg-yellow-100 text-xs font-medium transition-colors" onClick={() => openEditModal(v)}>Edit</button>
-                <button 
-                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors border ${
-                    v.status === 'Active' 
-                      ? 'bg-red-50 text-red-700 border-red-100 hover:bg-red-100' 
-                      : 'bg-green-50 text-green-700 border-green-100 hover:bg-green-100'
-                  }`} 
-                  onClick={() => toggleAccountStatus(v, v.status === 'Active' ? 'Inactive' : 'Active')}
-                >
-                  {v.status === 'Active' ? 'Disable' : 'Enable'}
-                </button>
-                <button 
-                  className="px-3 py-1 rounded-md bg-purple-50 text-purple-700 border border-purple-100 hover:bg-purple-100 text-xs font-medium transition-colors" 
-                  onClick={() => sendPaymentReminder(v)}
-                >
-                  Reminder
-                </button>
               </div>
             </div>
           ))
@@ -669,28 +653,6 @@ export default function VendorsPage() {
                   <td className="px-4 py-3 flex gap-2">
                     <button className="px-3 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 text-xs font-medium transition-colors" onClick={() => openViewModal(v)}>View</button>
                     <button className="px-3 py-1 rounded-md bg-yellow-50 text-yellow-700 border border-yellow-100 hover:bg-yellow-100 text-xs font-medium transition-colors" onClick={() => openEditModal(v)}>Edit</button>
-                    <button 
-                      className={`px-3 py-1 rounded-md text-xs font-medium transition-colors border ${
-                        v.status === 'Active' 
-                          ? 'bg-red-50 text-red-700 border-red-100 hover:bg-red-100' 
-                          : 'bg-green-50 text-green-700 border-green-100 hover:bg-green-100'
-                      }`} 
-                      onClick={() => toggleAccountStatus(v, v.status === 'Active' ? 'Inactive' : 'Active')}
-                    >
-                      {v.status === 'Active' ? 'Disable' : 'Enable'}
-                    </button>
-                    <button 
-                      className="px-3 py-1 rounded-md bg-purple-50 text-purple-700 border border-purple-100 hover:bg-purple-100 text-xs font-medium transition-colors" 
-                      onClick={() => sendPaymentReminder(v)}
-                    >
-                      Payment Reminder
-                    </button>
-                    <button 
-                      className="px-3 py-1 rounded-md bg-orange-50 text-orange-700 border border-orange-100 hover:bg-orange-100 text-xs font-medium transition-colors" 
-                      onClick={() => checkPaymentStatus(v)}
-                    >
-                      Check Payment
-                    </button>
                   </td>
                 </tr>
               ))
@@ -878,6 +840,41 @@ export default function VendorsPage() {
                       <div className="font-bold text-lg">LKR {getTotalPaid().toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                     </div>
                   </div>
+                  
+                  {/* Account Management Actions */}
+                  <div className="bg-white rounded-lg p-6 shadow-sm">
+                    <div className="font-semibold text-base mb-4">Account Management</div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <button 
+                        className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors border ${
+                          viewVendor.status === 'Active' 
+                            ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' 
+                            : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                        }`} 
+                        onClick={() => toggleAccountStatus(viewVendor, viewVendor.status === 'Active' ? 'Inactive' : 'Active')}
+                      >
+                        <div className="font-semibold">{viewVendor.status === 'Active' ? 'Disable Account' : 'Enable Account'}</div>
+                        <div className="text-xs opacity-75">Toggle account status</div>
+                      </button>
+                      
+                      <button 
+                        className="px-4 py-3 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 text-sm font-medium transition-colors" 
+                        onClick={() => sendPaymentReminder(viewVendor)}
+                      >
+                        <div className="font-semibold">Payment Reminder</div>
+                        <div className="text-xs opacity-75">Send payment notification</div>
+                      </button>
+                      
+                      <button 
+                        className="px-4 py-3 rounded-lg bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 text-sm font-medium transition-colors" 
+                        onClick={() => checkPaymentStatus(viewVendor)}
+                      >
+                        <div className="font-semibold">Check Payment</div>
+                        <div className="text-xs opacity-75">Verify payment status</div>
+                      </button>
+                    </div>
+                  </div>
+                  
                   {/* Record Payment & Actions */}
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-2">
                     <div className="font-semibold text-base">Record Payment</div>
@@ -963,7 +960,77 @@ export default function VendorsPage() {
                   )}
                 </div>
               )}
-              {/* Other tabs can be filled in as needed */}
+              {activeTab === 'Notifications' && (
+                <div className="space-y-6">
+                  {/* Account Management Actions */}
+                  <div className="bg-white rounded-lg p-6 shadow-sm">
+                    <div className="font-semibold text-base mb-4">Account Management</div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <button 
+                        className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors border ${
+                          viewVendor.status === 'Active' 
+                            ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' 
+                            : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                        }`} 
+                        onClick={() => toggleAccountStatus(viewVendor, viewVendor.status === 'Active' ? 'Inactive' : 'Active')}
+                      >
+                        <div className="font-semibold">{viewVendor.status === 'Active' ? 'Disable Account' : 'Enable Account'}</div>
+                        <div className="text-xs opacity-75">Toggle account status</div>
+                      </button>
+                      
+                      <button 
+                        className="px-4 py-3 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 text-sm font-medium transition-colors" 
+                        onClick={() => sendPaymentReminder(viewVendor)}
+                      >
+                        <div className="font-semibold">Payment Reminder</div>
+                        <div className="text-xs opacity-75">Send payment notification</div>
+                      </button>
+                      
+                      <button 
+                        className="px-4 py-3 rounded-lg bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 text-sm font-medium transition-colors" 
+                        onClick={() => checkPaymentStatus(viewVendor)}
+                      >
+                        <div className="font-semibold">Check Payment</div>
+                        <div className="text-xs opacity-75">Verify payment status</div>
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Notification History */}
+                  <div className="bg-white rounded-lg p-6 shadow-sm">
+                    <div className="font-semibold text-base mb-4">Notification History</div>
+                    <div className="text-sm text-neutral-500">
+                      Notifications sent to this vendor will appear here.
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {activeTab === 'Subscription' && (
+                <div className="space-y-6">
+                  <div className="bg-white rounded-lg p-6 shadow-sm">
+                    <div className="font-semibold text-base mb-4">Subscription Details</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <div className="text-sm text-neutral-500 mb-1">Current Plan</div>
+                        <div className="font-bold text-lg">{viewVendor.subscription?.plan || 'No Plan'}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-neutral-500 mb-1">Monthly Fee</div>
+                        <div className="font-bold text-lg">LKR {viewVendor.subscription?.monthlyFee?.toLocaleString() || '0'}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-neutral-500 mb-1">Duration</div>
+                        <div className="font-bold text-lg">{viewVendor.subscription?.duration || 'Monthly'}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-neutral-500 mb-1">Status</div>
+                        <div className="font-bold text-lg">{viewVendor.subscription?.status || viewVendor.status || 'Active'}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
