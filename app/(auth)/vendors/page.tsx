@@ -882,12 +882,11 @@ export default function VendorsPage() {
                       </button>
                       
                       <button 
-                        className={`px-4 py-3 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-200 hover:bg-yellow-100 text-sm font-medium transition-colors flex flex-col items-start ${viewVendor.warningBanner ? 'ring-2 ring-yellow-400' : ''}`}
+                        className={`px-4 py-3 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-200 hover:bg-yellow-100 text-sm font-medium transition-colors ${viewVendor.warningBanner ? 'ring-2 ring-yellow-400' : ''}`}
                         onClick={() => sendWarningBanner(viewVendor)}
                         disabled={!!viewVendor.warningBanner}
                       >
-                        <div className="font-semibold">Send Warning Banner</div>
-                        <div className="text-xs opacity-75">Show payment warning on vendor dashboard</div>
+                        Send Warning Banner
                       </button>
                       {viewVendor.warningBanner && (
                         <button 
@@ -1013,12 +1012,11 @@ export default function VendorsPage() {
                       </button>
                       
                       <button 
-                        className={`px-4 py-3 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-200 hover:bg-yellow-100 text-sm font-medium transition-colors flex flex-col items-start ${viewVendor.warningBanner ? 'ring-2 ring-yellow-400' : ''}`}
+                        className={`px-4 py-3 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-200 hover:bg-yellow-100 text-sm font-medium transition-colors ${viewVendor.warningBanner ? 'ring-2 ring-yellow-400' : ''}`}
                         onClick={() => sendWarningBanner(viewVendor)}
                         disabled={!!viewVendor.warningBanner}
                       >
-                        <div className="font-semibold">Send Warning Banner</div>
-                        <div className="text-xs opacity-75">Show payment warning on vendor dashboard</div>
+                        Send Warning Banner
                       </button>
                       {viewVendor.warningBanner && (
                         <button 
