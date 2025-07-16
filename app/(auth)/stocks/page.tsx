@@ -380,8 +380,8 @@ export default function VendorStocksPage() {
                         <td className="px-4 py-3 font-medium text-neutral-800">{s.productName}</td>
                         <td className="px-4 py-3 text-neutral-600">{s.category || '-'}</td>
                         <td className="px-4 py-3 text-neutral-600 lato-regular">{s.quantity}</td>
-                        <td className="px-4 py-3 text-neutral-600 whitespace-nowrap lato-regular">LKR {s.costPrice.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-neutral-600 whitespace-nowrap lato-regular">LKR {s.sellingPrice.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-neutral-600 whitespace-nowrap lato-regular">Rs {s.costPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="px-4 py-3 text-neutral-600 whitespace-nowrap lato-regular">Rs {s.sellingPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         <td className="px-4 py-3 text-neutral-600 lato-regular">{profitMargin.toFixed(1)}%</td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           {isOutOfStock ? (
@@ -432,11 +432,11 @@ export default function VendorStocksPage() {
                         </div>
                         <div>
                           <div className="text-neutral-500 text-xs">Cost Price</div>
-                          <div className="lato-regular">LKR {s.costPrice.toLocaleString()}</div>
+                          <div className="lato-regular">Rs {s.costPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                         </div>
                         <div>
                           <div className="text-neutral-500 text-xs">Selling Price</div>
-                          <div className="lato-regular">LKR {s.sellingPrice.toLocaleString()}</div>
+                          <div className="lato-regular">Rs {s.sellingPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                         </div>
                         <div>
                           <div className="text-neutral-500 text-xs">Profit Margin</div>
@@ -537,7 +537,7 @@ export default function VendorStocksPage() {
                       ) : (
                         productSuggestions.map((product, idx) => (
                           <button type="button" key={idx} className={`w-full text-left px-4 py-2 transition-colors text-sm ${highlightedIndex === idx ? 'bg-primary-100 text-primary-800' : 'hover:bg-primary-50'}`} onClick={() => handleSuggestionClick(product)}>
-                            {product.name} <span className="text-neutral-400">LKR {product.price}</span>
+                            {product.name} <span className="text-neutral-400">Rs {product.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                           </button>
                         ))
                       )}

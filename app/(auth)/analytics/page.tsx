@@ -87,7 +87,7 @@ interface CustomerData {
 }
 
 function formatCurrency(amount: number) {
-  return `LKR ${amount.toLocaleString()}`;
+  return `Rs ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function formatDate(date: Date) {

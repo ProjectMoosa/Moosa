@@ -284,7 +284,7 @@ export default function DashboardPage() {
   }, [role]);
 
   const stats = [
-    { label: "Total Revenue", value: `LKR ${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, change: "+23%" },
+    { label: "Total Revenue", value: `Rs ${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, change: "+23%" },
     { label: "Total Vendors", value: totalVendors.toString(), change: "+67%" },
     { label: "Active Vendors", value: activeVendors.toString(), change: "+67%" },
     { label: "Total Stock", value: totalStock.toString(), change: "" },
@@ -585,7 +585,7 @@ export default function DashboardPage() {
                           onChange={() => handleVendorPlanSelect(plan)}
                         />
                         <div className="font-bold text-lg mb-1">{plan.name}</div>
-                        <div className="text-primary-700 font-bold mb-1">LKR {plan.price?.toLocaleString()} / {plan.duration?.toLowerCase().startsWith('year') ? 'yr' : 'mo'}</div>
+                        <div className="text-primary-700 font-bold mb-1">Rs {plan.price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {plan.duration?.toLowerCase().startsWith('year') ? 'yr' : 'mo'}</div>
                         <div className="text-neutral-600 text-xs mb-2">{plan.description}</div>
                         {plan.features && plan.features.length > 0 && (
                           <ul className="text-xs text-neutral-700 list-disc list-inside">
@@ -658,7 +658,7 @@ export default function DashboardPage() {
                     className="mt-1 block w-full border border-neutral-200 rounded-md px-3 py-3 focus:ring-primary-500 focus:border-primary-500 text-base placeholder-neutral-400"
                     required
                     min={0}
-                    placeholder="Price (LKR)"
+                    placeholder="Price (Rs)"
                   />
                   <input
                     name="duration"

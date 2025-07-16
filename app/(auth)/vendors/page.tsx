@@ -16,7 +16,7 @@ function formatDate(ts: any) {
 }
 
 function formatPrice(price: number, duration: string) {
-  return `LKR ${price.toLocaleString("en-US")}/${duration?.toLowerCase().startsWith("year") ? "yr" : "mo"}`;
+  return `Rs ${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/${duration?.toLowerCase().startsWith("year") ? "yr" : "mo"}`;
 }
 
 function generatePassword() {
@@ -401,7 +401,7 @@ export default function VendorsPage() {
           recipientType: "vendor",
           recipientId: editVendor.id,
           type: "subscription_change",
-          message: `Your subscription plan has been changed from ${oldPlan || 'No Plan'} to ${newPlan}. New monthly fee: LKR ${selectedPlan.price.toLocaleString()}.`,
+          message: `Your subscription plan has been changed from ${oldPlan || 'No Plan'} to ${newPlan}. New monthly fee: Rs ${selectedPlan.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`,
           createdAt: Timestamp.now(),
           read: false,
         });
@@ -464,7 +464,7 @@ export default function VendorsPage() {
         recipientType: "vendor",
         recipientId: viewVendor.id,
         type: "subscription_payment",
-        message: `Payment of LKR ${Number(newPayment.amount).toLocaleString()} has been recorded for ${newPayment.period || 'your subscription'}. Payment method: ${newPayment.method}.`,
+        message: `Payment of Rs ${Number(newPayment.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} has been recorded for ${newPayment.period || 'your subscription'}. Payment method: ${newPayment.method}.`,
         createdAt: Timestamp.now(),
         read: false,
       });
@@ -616,8 +616,8 @@ export default function VendorsPage() {
               <div className="text-sm text-neutral-500 mb-1">Subscription: {v.subscriptionPlan || v.subscription?.plan || '-'}</div>
               <div className="text-sm text-neutral-500 mb-1">Monthly Fee: {
                 vendorsPayments[v.id] !== undefined
-                  ? `LKR ${vendorsPayments[v.id].toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-                  : (typeof v.monthlyFee === "number" ? `LKR ${v.monthlyFee}` : v.subscription?.monthlyFee || "LKR 0")
+                  ? `Rs ${vendorsPayments[v.id].toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                  : (typeof v.monthlyFee === "number" ? `Rs ${v.monthlyFee}` : v.subscription?.monthlyFee || "Rs 0.00")
               }</div>
               <div className="text-sm mb-2">
                 <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${v.status === "Active" || v.subscription?.status === "Active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
@@ -664,10 +664,10 @@ export default function VendorsPage() {
                   <td className="px-4 py-3">{v.contact || v.phone || "-"}</td>
                   <td className="px-4 py-3">{v.email || "-"}</td>
                   <td className="px-4 py-3">{v.subscriptionPlan || v.subscription?.plan || "-"}</td>
-                  <td className="px-4 py-3">{
-                    vendorsPayments[v.id] !== undefined
-                      ? `LKR ${vendorsPayments[v.id].toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-                      : (typeof v.monthlyFee === "number" ? `LKR ${v.monthlyFee}` : v.subscription?.monthlyFee || "LKR 0")
+                  <td className="px-4 py-3">
+                    {vendorsPayments[v.id] !== undefined
+                      ? `Rs ${vendorsPayments[v.id].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : (typeof v.monthlyFee === "number" ? `Rs ${v.monthlyFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : v.subscription?.monthlyFee || "Rs 0.00")
                   }</td>
                   <td className="px-4 py-3">
                     <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${v.status === "Active" || v.subscription?.status === "Active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
@@ -861,7 +861,7 @@ export default function VendorsPage() {
                     </div>
                     <div>
                       <div className="text-xs text-neutral-500 mb-1">Total Paid</div>
-                      <div className="font-bold text-lg">LKR {getTotalPaid().toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                      <div className="font-bold text-lg lato-regular">Rs {getTotalPaid().toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                     </div>
                   </div>
                   
@@ -946,7 +946,7 @@ export default function VendorsPage() {
                         )).map((p) => (
                           <tr key={p.id} className="border-t border-neutral-100">
                             <td className="px-4 py-3">{formatDate(p.date)}</td>
-                            <td className="px-4 py-3">LKR {Number(p.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                            <td className="px-4 py-3 lato-regular">Rs {Number(p.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                             <td className="px-4 py-3">{p.method || '-'}</td>
                             <td className="px-4 py-3">{p.period || '-'}</td>
                             <td className="px-4 py-3">
@@ -970,7 +970,7 @@ export default function VendorsPage() {
                           <button className="text-white text-2xl" onClick={() => setShowAddPaymentModal(false)} aria-label="Close">&times;</button>
                         </div>
                         <form className="flex-1 overflow-y-auto p-6 space-y-6" onSubmit={handleAddPayment}>
-                          <input type="number" required min={0} placeholder="Amount (LKR)" className="border border-neutral-200 rounded-md px-3 py-2 w-full" value={newPayment.amount} onChange={e => setNewPayment(n => ({ ...n, amount: e.target.value }))} />
+                          <input type="number" required min={0} placeholder="Amount (Rs)" className="border border-neutral-200 rounded-md px-3 py-2 w-full" value={newPayment.amount} onChange={e => setNewPayment(n => ({ ...n, amount: e.target.value }))} />
                           <input type="date" required className="border border-neutral-200 rounded-md px-3 py-2 w-full" value={newPayment.date} onChange={e => setNewPayment(n => ({ ...n, date: e.target.value }))} />
                           <input type="text" placeholder="Notes (optional)" className="border border-neutral-200 rounded-md px-3 py-2 w-full" value={newPayment.notes} onChange={e => setNewPayment(n => ({ ...n, notes: e.target.value }))} />
                           <select className="border border-neutral-200 rounded-md px-3 py-2 w-full" value={newPayment.method} onChange={e => setNewPayment(n => ({ ...n, method: e.target.value }))}>
@@ -1059,7 +1059,7 @@ export default function VendorsPage() {
                       </div>
                       <div>
                         <div className="text-sm text-neutral-500 mb-1">Monthly Fee</div>
-                        <div className="font-bold text-lg">LKR {viewVendor.subscription?.monthlyFee?.toLocaleString() || '0'}</div>
+                        <div className="font-bold text-lg lato-regular">Rs {viewVendor.subscription?.monthlyFee?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}</div>
                       </div>
                       <div>
                         <div className="text-sm text-neutral-500 mb-1">Duration</div>
@@ -1145,7 +1145,7 @@ export default function VendorsPage() {
                       />
                       <div>
                         <div className="font-semibold text-base">{plan.name}</div>
-                        <div className="text-sm text-neutral-600">LKR {plan.price?.toLocaleString()} / {plan.duration || 'mo'}</div>
+                        <div className="text-sm text-neutral-600">Rs {plan.price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {plan.duration || 'mo'}</div>
                         <ul className="list-disc ml-5 text-xs text-neutral-500 mt-1">
                           {plan.features?.map((f: string, i: number) => <li key={i}>{f}</li>)}
                         </ul>

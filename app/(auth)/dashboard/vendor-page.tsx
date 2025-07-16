@@ -123,11 +123,11 @@ export default function VendorDashboardPage() {
       <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
         <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-5 flex flex-col gap-1">
           <div className="text-sm text-neutral-500 font-medium">Total Stock Value</div>
-          <div className="text-xl font-bold text-neutral-900 lato-regular">{loading ? '-' : `LKR ${totalStockValue?.toLocaleString()}`}</div>
+          <div className="text-xl font-bold text-neutral-900 lato-regular">{loading ? '-' : `Rs ${totalStockValue?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</div>
         </div>
         <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-5 flex flex-col gap-1">
           <div className="text-sm text-neutral-500 font-medium">Total Profit Value</div>
-          <div className="text-xl font-bold text-green-700 lato-regular">{loading ? '-' : `LKR ${totalProfitValue?.toLocaleString()}`}</div>
+          <div className="text-xl font-bold text-green-700 lato-regular">{loading ? '-' : `Rs ${totalProfitValue?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</div>
         </div>
         <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-5 flex flex-col gap-1">
           <div className="text-sm text-neutral-500 font-medium">Stock Count</div>

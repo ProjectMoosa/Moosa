@@ -168,7 +168,7 @@ export default function SubscriptionPlansPage() {
                   <span className="text-neutral-400">{localEnabled[plan.id!] ? "Enabled" : "Disabled"}</span>
                 </div>
                 <div className="font-semibold text-neutral-900 text-base truncate">{plan.name}</div>
-                <div className="text-primary-800 font-bold text-lg">LKR {plan.price}</div>
+                <div className="text-primary-800 font-bold text-lg">Rs {plan.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 <div className="text-primary-700 text-xs font-medium">{plan.duration}</div>
               </div>
               <div className="flex-1 w-full md:w-2/3 min-w-0">
@@ -244,7 +244,7 @@ export default function SubscriptionPlansPage() {
                   className="mt-1 block w-full border border-neutral-200 rounded-md px-3 py-3 focus:ring-primary-500 focus:border-primary-500 text-base placeholder-neutral-400"
                   required
                   min={0}
-                  placeholder="Price (LKR)"
+                  placeholder="Price (Rs)"
                 />
                 <input
                   name="duration"

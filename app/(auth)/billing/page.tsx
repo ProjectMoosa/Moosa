@@ -239,7 +239,7 @@ export default function BillingPage() {
   };
 
   const formatCurrency = (amount: number) => {
-    return `Rs. ${amount.toFixed(2)}`;
+    return `Rs ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   // Sort sales by timestamp descending (newest first)

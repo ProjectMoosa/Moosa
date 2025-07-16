@@ -521,7 +521,7 @@ export default function POSPage() {
     });
   }, [stock, searchTerm, selectedCategory]);
   
-  const formatCurrency = (amount: number) => `LKR ${amount.toFixed(2)}`;
+  const formatCurrency = (amount: number) => `Rs ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   
   const changeToReturn = useMemo(() => {
       if(amountPaid === null || amountPaid < total) return 0;
@@ -782,7 +782,7 @@ export default function POSPage() {
                         <span className="mx-1.5">|</span>
                         <Tag className="w-3.5 h-3.5 text-green-600" /> 
                         Discount: {discountValue}
-                        {discountType === 'percentage' ? '%' : 'LKR'}
+                        {discountType === 'percentage' ? '%' : 'Rs'}
                       </span>
                       <ChevronDown className={`w-3.5 h-3.5 ml-2 transition-transform duration-200 ${showTaxDiscount ? 'rotate-180' : ''}`} />
                     </button>
@@ -817,7 +817,7 @@ export default function POSPage() {
                             className="px-2 py-1 border border-neutral-300 rounded-md focus:ring-2 focus:ring-primary-200 focus:border-primary-400 text-xs"
                           >
                             <option value="percentage">%</option>
-                            <option value="fixed">LKR</option>
+                            <option value="fixed">Rs</option>
                           </select>
                         </div>
                       </div>
@@ -1394,7 +1394,7 @@ export default function POSPage() {
                     className="px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   >
                     <option value="percentage">%</option>
-                    <option value="fixed">LKR</option>
+                    <option value="fixed">Rs</option>
                   </select>
                 </div>
               </div>
@@ -1466,7 +1466,7 @@ export default function POSPage() {
                     min="0"
                     step="0.01"
                   />
-                  <span className="text-sm text-neutral-500">Points Redemption Value (LKR)</span>
+                  <span className="text-sm text-neutral-500">Points Redemption Value (Rs)</span>
                 </div>
                 <div className="flex items-center gap-2 mt-1">
                   <input
