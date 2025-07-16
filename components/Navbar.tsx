@@ -30,6 +30,10 @@ export default function Navbar() {
         setUnreadCount(snap.size);
       });
       return () => unsub();
+    } else {
+      // Reset unread count when not a vendor or no user
+      setUnreadCount(0);
+      return () => {}; // Return empty cleanup function
     }
   }, [role, user]);
 
