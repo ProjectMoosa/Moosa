@@ -99,12 +99,12 @@ export default function ProductsPage() {
 
   async function fetchProducts() {
     setProductsLoading(true);
-    const querySnapshot = await getDocs(collection(db, "products_master"));
-    const data: Product[] = querySnapshot.docs.map((doc: DocumentData) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-    setProducts(data);
+      const querySnapshot = await getDocs(collection(db, "products_master"));
+      const data: Product[] = querySnapshot.docs.map((doc: DocumentData) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setProducts(data);
     setProductsLoading(false);
   }
 
@@ -785,8 +785,8 @@ export default function ProductsPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+      </div>
+    </div>
       )}
     </Container>
   );

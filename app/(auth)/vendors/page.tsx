@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, DocumentData, Timestamp, query, where, orderBy, setDoc } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, DocumentData, Timestamp, query, where, orderBy, setDoc, getDoc, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -55,6 +55,152 @@ export default function VendorsPage() {
   const [showDebugVendors, setShowDebugVendors] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [vendorsPayments, setVendorsPayments] = useState<{ [vendorId: string]: number }>({});
+  const [showBannerSettings, setShowBannerSettings] = useState(false);
+
+  // New state for payment-based account management
+  const [adminBanners, setAdminBanners] = useState<{
+    paymentNotification: boolean;
+    accountDisableWarning: boolean;
+    bannerMessage: string;
+  }>({
+    paymentNotification: true,
+    accountDisableWarning: true,
+    bannerMessage: "Payment due. Account will be disabled if payment is not received."
+  });
+
+  // Load admin banner settings
+  useEffect(() => {
+    const loadAdminBanners = async () => {
+      try {
+        const bannerDoc = await getDoc(doc(db, 'admin_settings', 'banners'));
+        if (bannerDoc.exists()) {
+          setAdminBanners(bannerDoc.data() as any);
+        }
+      } catch (error) {
+        console.error('Error loading admin banners:', error);
+      }
+    };
+    loadAdminBanners();
+  }, []);
+
+  // Save admin banner settings
+  const saveAdminBanners = async (settings: any) => {
+    try {
+      await setDoc(doc(db, 'admin_settings', 'banners'), settings);
+      setAdminBanners(settings);
+    } catch (error) {
+      console.error('Error saving admin banners:', error);
+    }
+  };
+
+  // Check payment status and update account status
+  const checkPaymentStatus = async (vendor: any) => {
+    if (!vendor.vendorCode) return;
+
+    try {
+      const paymentsQuery = query(
+        collection(db, "payment_records"),
+        where("vendorCode", "==", vendor.vendorCode),
+        orderBy("date", "desc"),
+        limit(1)
+      );
+      const paymentsSnap = await getDocs(paymentsQuery);
+      
+      if (paymentsSnap.empty) {
+        // No payments found - set to inactive
+        await updateDoc(doc(db, "vendor_accounts", vendor.id), {
+          status: "Inactive",
+          lastPaymentCheck: Timestamp.now(),
+        });
+
+        // Send payment notification if enabled
+        if (adminBanners.paymentNotification) {
+          await addDoc(collection(db, "notifications"), {
+            recipientType: "vendor",
+            recipientId: vendor.id,
+            type: "payment_required",
+            message: "Your account is inactive due to missing payment. Please contact support to reactivate your account.",
+            createdAt: Timestamp.now(),
+            read: false,
+          });
+        }
+      } else {
+        const lastPayment = paymentsSnap.docs[0].data();
+        const lastPaymentDate = lastPayment.date?.toDate ? lastPayment.date.toDate() : new Date(lastPayment.date);
+        const today = new Date();
+        const daysSincePayment = Math.floor((today.getTime() - lastPaymentDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        // If more than 30 days since last payment, set to inactive
+        if (daysSincePayment > 30) {
+          await updateDoc(doc(db, "vendor_accounts", vendor.id), {
+            status: "Inactive",
+            lastPaymentCheck: Timestamp.now(),
+          });
+
+          // Send payment notification if enabled
+          if (adminBanners.paymentNotification) {
+            await addDoc(collection(db, "notifications"), {
+              recipientType: "vendor",
+              recipientId: vendor.id,
+              type: "payment_overdue",
+              message: `Your account has been deactivated due to overdue payment (${daysSincePayment} days overdue). Please make payment to reactivate.`,
+              createdAt: Timestamp.now(),
+              read: false,
+            });
+          }
+        } else {
+          // Payment is current - set to active
+          await updateDoc(doc(db, "vendor_accounts", vendor.id), {
+            status: "Active",
+            lastPaymentCheck: Timestamp.now(),
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error checking payment status:', error);
+    }
+  };
+
+  // Manual account activation/deactivation
+  const toggleAccountStatus = async (vendor: any, newStatus: 'Active' | 'Inactive') => {
+    try {
+      await updateDoc(doc(db, "vendor_accounts", vendor.id), {
+        status: newStatus,
+        manuallyUpdated: true,
+        updatedAt: Timestamp.now(),
+      });
+
+      // Send notification about status change
+      await addDoc(collection(db, "notifications"), {
+        recipientType: "vendor",
+        recipientId: vendor.id,
+        type: "account_status_change",
+        message: `Your account has been ${newStatus.toLowerCase()} by the administrator.`,
+        createdAt: Timestamp.now(),
+        read: false,
+      });
+
+      await fetchVendors();
+    } catch (error) {
+      console.error('Error updating account status:', error);
+    }
+  };
+
+  // Send payment reminder notification
+  const sendPaymentReminder = async (vendor: any) => {
+    try {
+      await addDoc(collection(db, "notifications"), {
+        recipientType: "vendor",
+        recipientId: vendor.id,
+        type: "payment_reminder",
+        message: "Payment reminder: Your subscription payment is due. Please make payment to avoid account deactivation.",
+        createdAt: Timestamp.now(),
+        read: false,
+      });
+    } catch (error) {
+      console.error('Error sending payment reminder:', error);
+    }
+  };
 
   useEffect(() => {
     if (!loading && role === 'vendor') {
@@ -393,16 +539,24 @@ export default function VendorsPage() {
   return (
     <Container>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
-        <div className="flex justify-between items-center mb-6">
+        <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-neutral-800">Vendors</h1>
+          <p className="text-neutral-500">Manage your platform vendors and subscriptions</p>
         </div>
-        <p className="text-neutral-500">Manage your platform vendors and subscriptions</p>
-        <button
-          className="bg-primary-700 hover:bg-primary-800 text-white font-medium px-5 py-2 rounded-md text-sm shadow-sm transition-colors"
-          onClick={openModal}
-        >
-          Add Vendor
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowBannerSettings(true)}
+            className="px-4 py-2 bg-neutral-100 text-neutral-700 rounded-lg hover:bg-neutral-200 transition-colors border border-neutral-200"
+          >
+            Banner Settings
+          </button>
+          <button
+            className="bg-primary-700 hover:bg-primary-800 text-white font-medium px-5 py-2 rounded-md text-sm shadow-sm transition-colors"
+            onClick={openModal}
+          >
+            Add Vendor
+          </button>
+        </div>
       </div>
       {/* Filters and search */}
       <div className="flex flex-wrap gap-2 mb-4">
@@ -446,10 +600,25 @@ export default function VendorsPage() {
                   {v.status || v.subscription?.status || "-"}
                 </span>
               </div>
-              <div className="flex gap-2 mt-2">
+              <div className="flex gap-2 mt-2 flex-wrap">
                 <button className="px-3 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 text-xs font-medium transition-colors" onClick={() => openViewModal(v)}>View</button>
                 <button className="px-3 py-1 rounded-md bg-yellow-50 text-yellow-700 border border-yellow-100 hover:bg-yellow-100 text-xs font-medium transition-colors" onClick={() => openEditModal(v)}>Edit</button>
-                <button className="px-3 py-1 rounded-md bg-red-50 text-red-700 border border-red-100 hover:bg-red-100 text-xs font-medium transition-colors">-</button>
+                <button 
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors border ${
+                    v.status === 'Active' 
+                      ? 'bg-red-50 text-red-700 border-red-100 hover:bg-red-100' 
+                      : 'bg-green-50 text-green-700 border-green-100 hover:bg-green-100'
+                  }`} 
+                  onClick={() => toggleAccountStatus(v, v.status === 'Active' ? 'Inactive' : 'Active')}
+                >
+                  {v.status === 'Active' ? 'Disable' : 'Enable'}
+                </button>
+                <button 
+                  className="px-3 py-1 rounded-md bg-purple-50 text-purple-700 border border-purple-100 hover:bg-purple-100 text-xs font-medium transition-colors" 
+                  onClick={() => sendPaymentReminder(v)}
+                >
+                  Reminder
+                </button>
               </div>
             </div>
           ))
@@ -500,7 +669,28 @@ export default function VendorsPage() {
                   <td className="px-4 py-3 flex gap-2">
                     <button className="px-3 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 text-xs font-medium transition-colors" onClick={() => openViewModal(v)}>View</button>
                     <button className="px-3 py-1 rounded-md bg-yellow-50 text-yellow-700 border border-yellow-100 hover:bg-yellow-100 text-xs font-medium transition-colors" onClick={() => openEditModal(v)}>Edit</button>
-                    <button className="px-3 py-1 rounded-md bg-red-50 text-red-700 border border-red-100 hover:bg-red-100 text-xs font-medium transition-colors">-</button>
+                    <button 
+                      className={`px-3 py-1 rounded-md text-xs font-medium transition-colors border ${
+                        v.status === 'Active' 
+                          ? 'bg-red-50 text-red-700 border-red-100 hover:bg-red-100' 
+                          : 'bg-green-50 text-green-700 border-green-100 hover:bg-green-100'
+                      }`} 
+                      onClick={() => toggleAccountStatus(v, v.status === 'Active' ? 'Inactive' : 'Active')}
+                    >
+                      {v.status === 'Active' ? 'Disable' : 'Enable'}
+                    </button>
+                    <button 
+                      className="px-3 py-1 rounded-md bg-purple-50 text-purple-700 border border-purple-100 hover:bg-purple-100 text-xs font-medium transition-colors" 
+                      onClick={() => sendPaymentReminder(v)}
+                    >
+                      Payment Reminder
+                    </button>
+                    <button 
+                      className="px-3 py-1 rounded-md bg-orange-50 text-orange-700 border border-orange-100 hover:bg-orange-100 text-xs font-medium transition-colors" 
+                      onClick={() => checkPaymentStatus(v)}
+                    >
+                      Check Payment
+                    </button>
                   </td>
                 </tr>
               ))
@@ -876,6 +1066,86 @@ export default function VendorsPage() {
                 disabled={saving}
               >
                 {saving ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Banner Settings Modal */}
+      {showBannerSettings && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl relative flex flex-col max-h-[90vh]">
+            <div className="bg-primary-700 rounded-t-2xl px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+              <div className="text-lg font-bold text-white">Banner Settings</div>
+              <button className="text-white text-2xl" onClick={() => setShowBannerSettings(false)} aria-label="Close">&times;</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                  <div>
+                    <h3 className="font-semibold text-neutral-900">Payment Notifications</h3>
+                    <p className="text-sm text-neutral-600">Send automatic payment notifications to vendors</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={adminBanners.paymentNotification}
+                      onChange={(e) => setAdminBanners(prev => ({ ...prev, paymentNotification: e.target.checked }))}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                  <div>
+                    <h3 className="font-semibold text-neutral-900">Account Disable Warning</h3>
+                    <p className="text-sm text-neutral-600">Show warning banners to vendors about account deactivation</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={adminBanners.accountDisableWarning}
+                      onChange={(e) => setAdminBanners(prev => ({ ...prev, accountDisableWarning: e.target.checked }))}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    Banner Message
+                  </label>
+                  <textarea
+                    value={adminBanners.bannerMessage}
+                    onChange={(e) => setAdminBanners(prev => ({ ...prev, bannerMessage: e.target.value }))}
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    rows={3}
+                    placeholder="Enter banner message for vendors..."
+                  />
+                  <p className="text-xs text-neutral-500 mt-1">This message will be displayed to vendors on their dashboard</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-6 pb-6 pt-4 bg-white rounded-b-2xl sticky bottom-0 z-20">
+              <button
+                type="button"
+                className="px-4 py-2 rounded-md border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100 text-sm"
+                onClick={() => setShowBannerSettings(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="px-6 py-2 rounded-md bg-primary-700 text-white hover:bg-primary-800 text-sm font-medium shadow-sm"
+                onClick={() => {
+                  saveAdminBanners(adminBanners);
+                  setShowBannerSettings(false);
+                }}
+              >
+                Save Settings
               </button>
             </div>
           </div>

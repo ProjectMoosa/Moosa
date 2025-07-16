@@ -1,8 +1,6 @@
 {
-  "/(auth)/products/page": "app/(auth)/products/page.js",
-  "/(auth)/billing/page": "app/(auth)/billing/page.js",
-  "/(auth)/subscriptions/page": "app/(auth)/subscriptions/page.js",
-  "/(auth)/analytics/page": "app/(auth)/analytics/page.js",
-  "/(auth)/orders/page": "app/(auth)/orders/page.js",
-  "/(auth)/dashboard/page": "app/(auth)/dashboard/page.js"
+  "/page": "app/page.js",
+  "/(auth)/dashboard/page": "app/(auth)/dashboard/page.js",
+  "/(auth)/pos/page": "app/(auth)/pos/page.js",
+  "/(auth)/vendors/page": "app/(auth)/vendors/page.js"
 }
