@@ -394,7 +394,7 @@ export default function VendorStocksPage() {
                         </td>
                         <td className="px-4 py-3 text-neutral-600">{s.barcode || '-'}</td>
                         <td className="px-4 py-3 flex gap-2">
-                          <button className="text-blue-600 hover:underline" onClick={() => openEditModal(s)}>Edit</button>
+                          <button className="text-primary-600 hover:underline" onClick={() => openEditModal(s)}>Edit</button>
                           <button className="text-red-600 hover:underline" onClick={() => handleDelete(s)}>Delete</button>
                         </td>
                       </tr>
@@ -448,7 +448,7 @@ export default function VendorStocksPage() {
                         <div className="text-neutral-800 font-mono">{s.barcode || '-'}</div>
                       </div>
                       <div className="mt-4 flex gap-4">
-                        <button className="text-blue-600 hover:underline text-sm" onClick={() => openEditModal(s)}>Edit</button>
+                        <button className="text-primary-600 hover:underline text-sm" onClick={() => openEditModal(s)}>Edit</button>
                         <button className="text-red-600 hover:underline text-sm" onClick={() => handleDelete(s)}>Delete</button>
                       </div>
                     </div>

@@ -24,11 +24,6 @@ input, textarea, select, button, [contenteditable] {
 /* Override focus states for form elements */
 input:focus, textarea:focus, select:focus, button:focus, [contenteditable]:focus {
   outline: none !important;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
-  -webkit-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
-  -moz-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
-  --tw-ring-color: #3b82f6 !important;
-  --tw-ring-opacity: 0.2 !important;
 }
 
 /* Browser-specific overrides */
