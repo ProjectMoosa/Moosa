@@ -3,12 +3,13 @@
 import { useUser } from '@/components/useUser';
 import { useEffect, useState, useCallback } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, orderBy, Timestamp, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, Timestamp, addDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { saveAs } from 'file-saver';
 import { utils, write } from 'xlsx';
 import { CgSpinner } from 'react-icons/cg';
-import { FiDownload, FiPlusCircle, FiX } from 'react-icons/fi';
+import { FiDownload, FiPlusCircle, FiX, FiSettings } from 'react-icons/fi';
 import { QRCodeSVG } from 'qrcode.react';
+import Container from '@/components/Container';
 
 type CartItem = {
   id: string;
@@ -43,6 +44,16 @@ type Customer = {
   points?: number;
 };
 
+type LoyaltyConfig = {
+  pointsPerRupee: number;
+  minimumPurchase: number;
+  bonusPoints: number;
+  bonusThreshold: number;
+  welcomePoints: number;
+  pointsRedemptionValue: number; // How much Rs. each point is worth when redeeming
+  isEnabled: boolean;
+};
+
 export default function BillingPage() {
   const { user } = useUser();
   const [sales, setSales] = useState<Sale[]>([]);
@@ -51,14 +62,74 @@ export default function BillingPage() {
   const [activeTab, setActiveTab] = useState('sales');
   const [isQrModalOpen, setQrModalOpen] = useState(false);
   const [isManualAddModalOpen, setManualAddModalOpen] = useState(false);
+  const [isLoyaltyConfigModalOpen, setLoyaltyConfigModalOpen] = useState(false);
+  const [loyaltyConfig, setLoyaltyConfig] = useState<LoyaltyConfig>({
+    pointsPerRupee: 0.1, // 1 point per Rs. 10 spent (typical Sri Lankan ratio)
+    minimumPurchase: 100,
+    bonusPoints: 50,
+    bonusThreshold: 1000,
+    welcomePoints: 100,
+    pointsRedemptionValue: 1.0, // 1 point = Rs. 1 (typical Sri Lankan redemption)
+    isEnabled: true
+  });
   const [registrationUrl, setRegistrationUrl] = useState('');
   const [refetchTrigger, setRefetchTrigger] = useState(0);
+  const [salesFilter, setSalesFilter] = useState('');
 
   useEffect(() => {
     if (user) {
       setRegistrationUrl(`${window.location.origin}/register-customer/${user.uid}`);
     }
   }, [user]);
+
+  // Load loyalty configuration
+  useEffect(() => {
+    if (!user) return;
+
+    const loadLoyaltyConfig = async () => {
+      try {
+        const configDoc = await getDoc(doc(db, 'loyalty_config', user.uid));
+        if (configDoc.exists()) {
+          setLoyaltyConfig(configDoc.data() as LoyaltyConfig);
+        }
+      } catch (error) {
+        console.error('Error loading loyalty config:', error);
+      }
+    };
+
+    loadLoyaltyConfig();
+  }, [user]);
+
+  const saveLoyaltyConfig = async (config: LoyaltyConfig) => {
+    if (!user) return;
+    
+    try {
+      await setDoc(doc(db, 'loyalty_config', user.uid), config);
+      setLoyaltyConfig(config);
+      setLoyaltyConfigModalOpen(false);
+    } catch (error) {
+      console.error('Error saving loyalty config:', error);
+    }
+  };
+
+  const calculatePointsForPurchase = (total: number): number => {
+    if (!loyaltyConfig.isEnabled || total < loyaltyConfig.minimumPurchase) {
+      return 0;
+    }
+
+    let points = Math.floor(total * loyaltyConfig.pointsPerRupee);
+    
+    // Add bonus points if purchase exceeds threshold
+    if (total >= loyaltyConfig.bonusThreshold) {
+      points += loyaltyConfig.bonusPoints;
+    }
+
+    return points;
+  };
+
+  const calculatePointsValue = (points: number): number => {
+    return points * loyaltyConfig.pointsRedemptionValue;
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -171,9 +242,30 @@ export default function BillingPage() {
     return `Rs. ${amount.toFixed(2)}`;
   };
 
+  // Sort sales by timestamp descending (newest first)
+  const sortedSales = [...sales].sort((a, b) => {
+    if (!a.timestamp || !b.timestamp) return 0;
+    return b.timestamp.seconds - a.timestamp.seconds;
+  });
+
+  // Filter sales by customer name, phone, or order ID
+  const filteredSales = sortedSales.filter(sale => {
+    const search = salesFilter.toLowerCase();
+    return (
+      (sale.customerName && sale.customerName.toLowerCase().includes(search)) ||
+      (sale.customerPhone && sale.customerPhone.toLowerCase().includes(search)) ||
+      (sale.purchaseRefId && sale.purchaseRefId.toLowerCase().includes(search))
+    );
+  });
+
+  // Date format: DD/MMM/YYYY, always two digits for day
   const formatDate = (timestamp: Timestamp | undefined) => {
     if (!timestamp) return 'N/A';
-    return new Date(timestamp.seconds * 1000).toLocaleDateString();
+    const date = new Date(timestamp.seconds * 1000);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = date.toLocaleString('en-US', { month: 'short' });
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
   };
 
   const calculateProfit = (items: CartItem[]): number | null => {
@@ -210,257 +302,242 @@ export default function BillingPage() {
   };
 
   return (
-    <div className="p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
+    <>
+      <Container>
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-neutral-800">Billing</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-neutral-800">Billing</h1>
         </div>
+        <p className="text-sm sm:text-base text-neutral-600 mb-6">Manage your sales and customer data</p>
 
-        <div className="mb-6 border-b border-neutral-200">
-          <nav className="flex space-x-4">
+        {/* Tab Navigation */}
+        <div className="flex space-x-1 bg-neutral-100 p-1 rounded-lg mb-6">
+          {[
+            { id: 'sales', label: 'Sales History', count: filteredSales.length },
+            { id: 'customers', label: 'Customers', count: customers.length }
+          ].map((tab) => (
             <button
-              onClick={() => setActiveTab('sales')}
-              className={`px-3 py-2 font-medium text-sm rounded-md ${
-                activeTab === 'sales'
-                  ? 'bg-primary-100 text-primary-700'
-                  : 'text-neutral-500 hover:text-neutral-700'
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${
+                activeTab === tab.id
+                  ? 'bg-white text-primary-700 shadow-sm'
+                  : 'text-neutral-600 hover:text-neutral-900'
               }`}
             >
-              Sales
+              {tab.label} ({tab.count})
             </button>
-            <button
-              onClick={() => setActiveTab('customers')}
-              className={`px-3 py-2 font-medium text-sm rounded-md ${
-                activeTab === 'customers'
-                  ? 'bg-primary-100 text-primary-700'
-                  : 'text-neutral-500 hover:text-neutral-700'
-              }`}
-            >
-              Registered Customers
-            </button>
-          </nav>
+          ))}
         </div>
 
-        {loading ? (
-          <div className="flex justify-center items-center py-20">
-            <CgSpinner className="animate-spin text-4xl text-primary-600" />
-          </div>
-        ) : (
-          <div>
-            {activeTab === 'sales' && (
-              <div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  {/* Summary Cards */}
+        {/* Sales Tab */}
+        {activeTab === 'sales' && (
+          <div className="bg-white rounded-xl border border-neutral-200 shadow-sm">
+            <div className="p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-semibold text-neutral-900">Sales History</h2>
+                  <p className="text-sm text-neutral-600">View and export your sales data</p>
                 </div>
-                <div className="bg-white rounded-lg shadow-sm">
-                  <div className="p-4 flex justify-between items-center">
-                    <h2 className="text-xl font-semibold">Sales History</h2>
-                    <button
-                      onClick={exportToExcel}
-                      className="px-4 py-2 text-sm font-semibold text-white bg-primary-700 rounded-lg shadow-sm hover:bg-primary-800 flex items-center gap-2"
-                    >
-                      <FiDownload />
-                      Export
-                    </button>
-                  </div>
-                  <div className="overflow-x-auto">
-                    {sales.length > 0 ? (
-                      <div>
-                        {/* Desktop Table */}
-                        <table className="min-w-full divide-y divide-neutral-200 hidden md:table">
-                          <thead className="bg-neutral-50">
-                            <tr>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ref ID</th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Date</th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Customer</th>
-                              <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-neutral-500 uppercase tracking-wider">Items Sold</th>
-                              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-neutral-500 uppercase tracking-wider">Total</th>
-                              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-neutral-500 uppercase tracking-wider">Profit</th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-neutral-200">
-                            {sales.map(s => {
-                              const itemsSoldCount = s.items?.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0) ?? 0;
-                              const itemsSoldDisplay = itemsSoldCount > 0 ? itemsSoldCount : (s.total > 0 ? 'N/A' : 0);
-
-                              return (
-                              <tr key={s.id}>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
-                                  <div title={s.items?.map(item => `${item.name} (x${item.quantity})`).join(', ')}>
-                                    {s.purchaseRefId}
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900">{formatDate(s.timestamp)}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900">{s.customerName}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900 text-center">
-                                  <span className="lato-regular">{itemsSoldDisplay}</span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900 text-right">
-                                  <span className="lato-regular">{formatCurrency(s.total)}</span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900 text-right">
-                                  {calculateProfit(s.items) !== null ? <span className="lato-regular">{formatCurrency(calculateProfit(s.items)!)}</span> : 'N/A'}
-                                </td>
-                              </tr>
-                            )})}
-                          </tbody>
-                        </table>
-                        {/* Mobile Cards */}
-                        <div className="md:hidden">
-                           {sales.map(s => {
-                              const itemsSoldCount = s.items?.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0) ?? 0;
-                              const itemsSoldDisplay = itemsSoldCount > 0 ? itemsSoldCount : (s.total > 0 ? 'N/A' : 0);
-                              const profit = calculateProfit(s.items);
-
-                              return (
-                                <div key={s.id} className="border-t border-neutral-200 p-4">
-                                  <div className="flex justify-between items-start">
-                                    <div>
-                                      <div
-                                        className="font-semibold text-primary-700"
-                                        title={s.items?.map(item => `${item.name} (x${item.quantity})`).join(', ')}
-                                      >
-                                        {s.purchaseRefId}
-                                      </div>
-                                      <div className="text-sm text-neutral-800">{s.customerName}</div>
-                                      <div className="text-xs text-neutral-500">{formatDate(s.timestamp)}</div>
-                                    </div>
-                                    <div className="text-right">
-                                      <div className="font-bold text-lg">
-                                        <span className="lato-regular">{formatCurrency(s.total)}</span>
-                                      </div>
-                                      {profit !== null && <div className="text-xs text-green-600">Profit: <span className="lato-regular">{formatCurrency(profit)}</span></div>}
-                                    </div>
-                                  </div>
-                                  <div className="text-center mt-2 text-sm">
-                                    Items Sold: <span className="lato-regular">{itemsSoldDisplay}</span>
-                                  </div>
-                                </div>
-                              )
-                           })}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-center py-12">
-                        <div className="text-neutral-400 mb-4">
-                          <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                        </div>
-                        <h3 className="text-lg font-medium text-neutral-900 mb-2">No Sales Recorded Yet</h3>
-                        <p className="text-neutral-500">Start making sales through the POS to see them appear here.</p>
-                      </div>
-                    )}
-                  </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Search sales..."
+                    value={salesFilter}
+                    onChange={(e) => setSalesFilter(e.target.value)}
+                    className="px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  />
+                  <button
+                    onClick={exportToExcel}
+                    className="px-4 py-2 text-sm font-semibold text-primary-700 bg-primary-100 rounded-lg shadow-sm hover:bg-primary-200 flex items-center gap-2"
+                  >
+                    <FiDownload className="w-4 h-4" />
+                    Export
+                  </button>
                 </div>
               </div>
-            )}
-            {activeTab === 'customers' && (
-              <div>
-                <div className="bg-white rounded-lg shadow-sm">
-                   <div className="p-4 flex justify-between items-center">
-                    <h2 className="text-xl font-semibold">Registered Customers</h2>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setManualAddModalOpen(true)}
-                        className="px-4 py-2 text-sm font-semibold text-white bg-primary-700 rounded-lg shadow-sm hover:bg-primary-800 flex items-center gap-2"
-                      >
-                        <FiPlusCircle />
-                        Add Customer
-                      </button>
-                      <button
-                        onClick={() => setQrModalOpen(true)}
-                        className="px-4 py-2 text-sm font-semibold text-primary-700 bg-primary-100 rounded-lg shadow-sm hover:bg-primary-200"
-                      >
-                        Show QR Code
-                      </button>
-                    </div>
-                  </div>
-                  <div className="overflow-x-auto">
-                  {customers.length > 0 ? (
-                    <div>
-                      {/* Desktop Table */}
-                      <table className="min-w-full divide-y divide-neutral-200 hidden md:table">
-                        <thead className="bg-neutral-50">
-                          <tr>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Name</th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Phone</th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Points</th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">First Purchase</th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Last Purchase</th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-neutral-200">
-                          {customers.map(c => (
-                            <tr key={c.id}>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-neutral-900">{c.name}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{c.phone}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
-                                <span className="lato-regular">{c.points}</span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
-                                {formatDate(c.firstSeen)}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
-                                {formatDate(c.lastSeen)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      {/* Mobile Cards */}
-                      <div className="md:hidden">
-                        {customers.map(c => (
-                           <div key={c.id} className="border-t border-neutral-200 p-4">
-                              <div className="flex justify-between items-start">
-                                <div>
-                                  <div className="font-semibold text-neutral-800">{c.name}</div>
-                                  <div className="text-sm text-neutral-500">{c.phone}</div>
-                                </div>
-                                <div className="text-right">
-                                   <div className="font-bold text-primary-700">
-                                     <span className="lato-regular">{c.points} pts</span>
-                                   </div>
-                                </div>
-                              </div>
-                              <div className="grid grid-cols-2 gap-4 mt-2 text-sm">
-                                <div>
-                                  <div className="text-xs text-neutral-400">First Purchase</div>
-                                  <div>{formatDate(c.firstSeen)}</div>
-                                </div>
-                                <div>
-                                  <div className="text-xs text-neutral-400">Last Purchase</div>
-                                  <div>{formatDate(c.lastSeen)}</div>
-                                </div>
-                              </div>
-                           </div>
-                        ))}
-                      </div>
-                    </div>
-                     ) : (
-                      <div className="text-center py-12">
-                        <div className="text-neutral-400 mb-4">
-                          <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                          </svg>
+              
+              {filteredSales.length > 0 ? (
+                <div className="overflow-x-auto">
+                  {/* Desktop Table */}
+                  <table className="min-w-full divide-y divide-neutral-200 hidden md:table">
+                    <thead className="bg-neutral-50">
+                      <tr>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Order ID</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Customer</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Items</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Total</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Payment</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-neutral-200">
+                      {filteredSales.map((sale) => (
+                        <tr key={sale.id} className="hover:bg-neutral-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-neutral-900">{sale.purchaseRefId}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div>
+                              <div className="text-sm font-medium text-neutral-900">{sale.customerName}</div>
+                              <div className="text-sm text-neutral-500">{sale.customerPhone}</div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{sale.items.length} items</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-neutral-900">{formatCurrency(sale.total)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-800">
+                              {sale.paymentMethod}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{formatDate(sale.timestamp)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  
+                  {/* Mobile Cards */}
+                  <div className="md:hidden space-y-4">
+                    {filteredSales.map((sale) => (
+                      <div key={sale.id} className="border border-neutral-200 rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <div className="font-semibold text-neutral-900">{sale.customerName}</div>
+                            <div className="text-sm text-neutral-600">{sale.customerPhone}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-semibold text-neutral-900">{formatCurrency(sale.total)}</div>
+                            <div className="text-xs text-neutral-500">{formatDate(sale.timestamp)}</div>
+                          </div>
                         </div>
-                        <h3 className="text-lg font-medium text-neutral-900 mb-2">No Customers Registered Yet</h3>
-                        <p className="text-neutral-500">Use the buttons above to add customers or show the QR code for self-registration.</p>
+                        <div className="flex justify-between items-center text-sm text-neutral-600">
+                          <span>Order: {sale.purchaseRefId}</span>
+                          <span>{sale.items.length} items</span>
+                        </div>
+                        <div className="mt-2">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-neutral-100 text-neutral-800">
+                            {sale.paymentMethod}
+                          </span>
+                        </div>
                       </div>
-                    )}
+                    ))}
                   </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="text-center py-12">
+                  <div className="text-neutral-400 mb-4">
+                    <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-medium text-neutral-900 mb-2">No Sales Found</h3>
+                  <p className="text-neutral-500">No sales match your current search criteria.</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
-      </div>
+
+        {/* Customers Tab */}
+        {activeTab === 'customers' && (
+          <div className="bg-white rounded-xl border border-neutral-200 shadow-sm">
+            <div className="p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-semibold text-neutral-900">Customer Management</h2>
+                  <p className="text-sm text-neutral-600">Manage your customer database and loyalty points</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setManualAddModalOpen(true)}
+                    className="px-4 py-2 text-sm font-semibold text-primary-700 bg-primary-100 rounded-lg shadow-sm hover:bg-primary-200 flex items-center gap-2"
+                  >
+                    <FiPlusCircle className="w-4 h-4" />
+                    Add Customer
+                  </button>
+                  <button
+                    onClick={() => setLoyaltyConfigModalOpen(true)}
+                    className="px-4 py-2 text-sm font-semibold text-primary-700 bg-primary-100 rounded-lg shadow-sm hover:bg-primary-200 flex items-center gap-2"
+                  >
+                    <FiSettings className="w-4 h-4" />
+                    Loyalty Settings
+                  </button>
+                  <button
+                    onClick={() => setQrModalOpen(true)}
+                    className="px-4 py-2 text-sm font-semibold text-primary-700 bg-primary-100 rounded-lg shadow-sm hover:bg-primary-200"
+                  >
+                    Show QR Code
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+              {customers.length > 0 ? (
+                <div>
+                  {/* Desktop Table */}
+                  <table className="min-w-full divide-y divide-neutral-200 hidden md:table">
+                    <thead className="bg-neutral-50">
+                      <tr>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Name</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Phone</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Points</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">First Purchase</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Last Purchase</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-neutral-200">
+                      {customers.map(c => (
+                        <tr key={c.id}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-neutral-900">{c.name}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{c.phone}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{c.points || 0}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
+                            {c.firstSeen ? formatDate(c.firstSeen) : 'N/A'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
+                            {c.lastSeen ? formatDate(c.lastSeen) : 'N/A'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {/* Mobile Cards */}
+                  <div className="md:hidden">
+                    {customers.map(c => (
+                      <div key={c.id} className="border-t border-neutral-200 p-4">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="font-semibold text-neutral-900">{c.name}</div>
+                            <div className="text-sm text-neutral-600">{c.phone}</div>
+                            <div className="text-xs text-neutral-500">Points: {c.points || 0}</div>
+                          </div>
+                          <div className="text-right text-xs text-neutral-500">
+                            <div>First: {c.firstSeen ? formatDate(c.firstSeen) : 'N/A'}</div>
+                            <div>Last: {c.lastSeen ? formatDate(c.lastSeen) : 'N/A'}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <div className="text-neutral-400 mb-4">
+                    <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-medium text-neutral-900 mb-2">No Customers Registered Yet</h3>
+                  <p className="text-neutral-500">Customers will appear here once they make their first purchase.</p>
+                </div>
+              )}
+              </div>
+            </div>
+          </div>
+        )}
+      </Container>
 
       {isManualAddModalOpen && (
         <ManualAddCustomerModal
           isOpen={isManualAddModalOpen}
           onClose={() => setManualAddModalOpen(false)}
-          vendorId={user!.uid}
+          vendorId={user?.uid || ''}
           onCustomerAdded={onCustomerAdded}
         />
       )}
@@ -483,7 +560,16 @@ export default function BillingPage() {
           </div>
         </div>
       )}
-    </div>
+
+      {isLoyaltyConfigModalOpen && (
+        <LoyaltyConfigModal
+          isOpen={isLoyaltyConfigModalOpen}
+          onClose={() => setLoyaltyConfigModalOpen(false)}
+          config={loyaltyConfig}
+          onSave={saveLoyaltyConfig}
+        />
+      )}
+    </>
   );
 } 
 
@@ -575,6 +661,209 @@ function ManualAddCustomerModal({ isOpen, onClose, vendorId, onCustomerAdded }: 
               </div>
             </form>
         </div>
+    </div>
+  );
+} 
+
+// Loyalty Configuration Modal Component
+type LoyaltyConfigModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  config: LoyaltyConfig;
+  onSave: (config: LoyaltyConfig) => void;
+};
+
+function LoyaltyConfigModal({ isOpen, onClose, config, onSave }: LoyaltyConfigModalProps) {
+  const [formData, setFormData] = useState<LoyaltyConfig>(config);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setFormData(config);
+  }, [config]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    try {
+      await onSave(formData);
+    } catch (error) {
+      console.error('Error saving loyalty config:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInputChange = (field: keyof LoyaltyConfig, value: string | number | boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: typeof value === 'string' ? parseFloat(value) || 0 : value
+    }));
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60" onClick={onClose}>
+      <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-neutral-800">Loyalty Points Configuration</h2>
+          <button onClick={onClose} className="text-neutral-500 hover:text-neutral-800">
+            <FiX size={24} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Enable/Disable Loyalty Program */}
+          <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+            <div>
+              <h3 className="font-semibold text-neutral-900">Enable Loyalty Program</h3>
+              <p className="text-sm text-neutral-600">Turn on or off the loyalty points system</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.isEnabled}
+                onChange={(e) => handleInputChange('isEnabled', e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+            </label>
+          </div>
+
+          {/* Basic Points Configuration */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
+                Points per Rupee
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.pointsPerRupee}
+                onChange={(e) => handleInputChange('pointsPerRupee', e.target.value)}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                placeholder="0.1"
+              />
+              <p className="text-xs text-neutral-500 mt-1">How many points customers earn per rupee spent (e.g., 0.1 = 1 point per Rs. 10)</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
+                Points Redemption Value (Rs.)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.pointsRedemptionValue}
+                onChange={(e) => handleInputChange('pointsRedemptionValue', e.target.value)}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                placeholder="1.0"
+              />
+              <p className="text-xs text-neutral-500 mt-1">How much Rs. each point is worth when redeeming (e.g., 1.0 = 1 point = Rs. 1)</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
+                Minimum Purchase (Rs.)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={formData.minimumPurchase}
+                onChange={(e) => handleInputChange('minimumPurchase', e.target.value)}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                placeholder="100"
+              />
+              <p className="text-xs text-neutral-500 mt-1">Minimum purchase amount to earn points</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
+                Welcome Points
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={formData.welcomePoints}
+                onChange={(e) => handleInputChange('welcomePoints', e.target.value)}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                placeholder="100"
+              />
+              <p className="text-xs text-neutral-500 mt-1">Points given to new customers when they register</p>
+            </div>
+          </div>
+
+          {/* Bonus Points Configuration */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
+                Bonus Points
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={formData.bonusPoints}
+                onChange={(e) => handleInputChange('bonusPoints', e.target.value)}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                placeholder="50"
+              />
+              <p className="text-xs text-neutral-500 mt-1">Extra points given when threshold is reached</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
+                Bonus Threshold (Rs.)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={formData.bonusThreshold}
+                onChange={(e) => handleInputChange('bonusThreshold', e.target.value)}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                placeholder="1000"
+              />
+              <p className="text-xs text-neutral-500 mt-1">Purchase amount to trigger bonus points</p>
+            </div>
+          </div>
+
+          {/* Example Calculation */}
+          <div className="p-4 bg-primary-50 rounded-lg">
+            <h4 className="font-semibold text-primary-800 mb-2">Example Calculation</h4>
+            <p className="text-sm text-primary-700">
+              For a Rs. 1,500 purchase:
+            </p>
+            <ul className="text-sm text-primary-700 mt-2 space-y-1">
+              <li>• Base points: {Math.floor(1500 * formData.pointsPerRupee)}</li>
+              <li>• Bonus points: {1500 >= formData.bonusThreshold ? formData.bonusPoints : 0}</li>
+              <li>• Total points: {Math.floor(1500 * formData.pointsPerRupee) + (1500 >= formData.bonusThreshold ? formData.bonusPoints : 0)}</li>
+            </ul>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-2 text-sm font-medium text-neutral-700 bg-neutral-100 rounded-lg hover:bg-neutral-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-6 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {loading && <CgSpinner className="animate-spin" />}
+              Save Configuration
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 } 

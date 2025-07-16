@@ -32,6 +32,7 @@ import {
   Eye,
   Target
 } from 'lucide-react';
+import Container from '@/components/Container';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Title, Tooltip, Legend, ArcElement);
 
@@ -407,324 +408,319 @@ export default function AnalyticsPage() {
     },
   };
 
-  if (loading || loadingData) {
-    return (
-      <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-700 mx-auto mb-4"></div>
-          <p className="text-neutral-600">Loading analytics...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-neutral-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
-        {/* Header */}
-        <div className="mb-6 sm:mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">
-                {getGreeting()}, {vendor?.businessName || 'Vendor'}!
-              </h1>
-              <p className="text-sm sm:text-base text-neutral-600">Your business analytics dashboard</p>
-            </div>
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="flex bg-white rounded-lg border border-neutral-200 p-1">
-                {(['7d', '30d', '90d', '1y'] as const).map((range) => (
-                  <button
-                    key={range}
-                    onClick={() => setTimeRange(range)}
-                    className={`px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-colors ${
-                      timeRange === range
-                        ? 'bg-primary-100 text-primary-700'
-                        : 'text-neutral-600 hover:text-neutral-900'
-                    }`}
-                  >
-                    {range}
-                  </button>
-                ))}
-              </div>
-            </div>
+    <Container>
+      {(loading || loadingData) ? (
+        <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-700 mx-auto mb-4"></div>
+            <p className="text-neutral-600">Loading analytics...</p>
           </div>
         </div>
-
-        {loadingData ? (
-          <div className="text-center py-20">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-            <p className="mt-4 text-neutral-500">Loading analytics...</p>
+      ) : (
+        <>
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl sm:text-3xl font-bold text-neutral-800">
+              {getGreeting()}, {vendor?.businessName || 'Vendor'}!
+            </h1>
           </div>
-        ) : (
-          <>
-          {/* Key Metrics Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
-            <div className="relative group bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-3 sm:mb-4">
-                <div className="p-1.5 sm:p-2 bg-green-100 rounded-lg">
-                  <DollarSign className="w-4 h-4 sm:w-6 sm:h-6 text-green-600" />
-                </div>
-                <div className={`flex items-center gap-1 text-xs sm:text-sm font-medium ${
-                  metrics.growthRate >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {metrics.growthRate >= 0 ? (
-                    <ArrowUpRight className="w-3 h-3 sm:w-4 sm:h-4" />
-                  ) : (
-                    <ArrowDownRight className="w-3 h-3 sm:w-4 sm:h-4" />
-                  )}
-                  <span className="lato-regular">{Math.abs(metrics.growthRate).toFixed(1)}%</span>
-                </div>
-              </div>
-              <h3 className="text-lg sm:text-2xl font-bold text-neutral-900 mb-1">
-                <span className="lato-regular">{formatCurrency(metrics.totalRevenue)}</span>
-              </h3>
-              <p className="text-xs sm:text-sm text-neutral-600">Total Revenue</p>
-              <div className="absolute bottom-full mb-2 hidden group-hover:block w-64 bg-neutral-800 text-white text-xs rounded-lg p-2 shadow-lg z-10">
-                  The total amount of money received from all sales in the selected time period.
-                  <div className="absolute left-1/2 -translate-x-1/2 bottom-[-4px] w-2 h-2 bg-neutral-800 rotate-45"></div>
-              </div>
-            </div>
-
-            <div className="relative group bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-3 sm:mb-4">
-                <div className="p-1.5 sm:p-2 bg-blue-100 rounded-lg">
-                  <ShoppingCart className="w-4 h-4 sm:w-6 sm:h-6 text-blue-600" />
-                </div>
-              </div>
-              <h3 className="text-lg sm:text-2xl font-bold text-neutral-900 mb-1">
-                <span className="lato-regular">{formatCurrency(metrics.avgOrderValue)}</span>
-              </h3>
-              <p className="text-xs sm:text-sm text-neutral-600">Avg Order Value</p>
-              <div className="absolute bottom-full mb-2 hidden group-hover:block w-64 bg-neutral-800 text-white text-xs rounded-lg p-2 shadow-lg z-10">
-                  The average amount of money a customer spends in a single transaction.
-                  <div className="absolute left-1/2 -translate-x-1/2 bottom-[-4px] w-2 h-2 bg-neutral-800 rotate-45"></div>
-              </div>
-            </div>
-
-            <div className="relative group bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-3 sm:mb-4">
-                <div className="p-1.5 sm:p-2 bg-orange-100 rounded-lg">
-                  <Users className="w-4 h-4 sm:w-6 sm:h-6 text-orange-600" />
-                </div>
-              </div>
-              <h3 className="text-lg sm:text-2xl font-bold text-neutral-900 mb-1">
-                <span className="lato-regular">{metrics.uniqueCustomers}</span>
-              </h3>
-              <p className="text-xs sm:text-sm text-neutral-600">Unique Customers</p>
-              <div className="absolute bottom-full mb-2 hidden group-hover:block w-64 bg-neutral-800 text-white text-xs rounded-lg p-2 shadow-lg z-10">
-                  The number of individual customers who made a purchase in the time period.
-                  <div className="absolute left-1/2 -translate-x-1/2 bottom-[-4px] w-2 h-2 bg-neutral-800 rotate-45"></div>
-              </div>
-            </div>
-
-            <div className="relative group bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-3 sm:mb-4">
-                <div className="p-1.5 sm:p-2 bg-purple-100 rounded-lg">
-                  <Package className="w-4 h-4 sm:w-6 sm:h-6 text-purple-600" />
-                </div>
-              </div>
-              <h3 className="text-lg sm:text-2xl font-bold text-neutral-900 mb-1">
-                <span className="lato-regular">{metrics.totalOrders}</span>
-              </h3>
-              <p className="text-xs sm:text-sm text-neutral-600">Total Orders</p>
-              <div className="absolute bottom-full mb-2 hidden group-hover:block w-64 bg-neutral-800 text-white text-xs rounded-lg p-2 shadow-lg z-10">
-                  The total number of separate sales transactions completed.
-                  <div className="absolute left-1/2 -translate-x-1/2 bottom-[-4px] w-2 h-2 bg-neutral-800 rotate-45"></div>
-              </div>
-            </div>
-          </div>
-
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8 mb-6 sm:mb-8">
-          {/* Main Revenue Chart */}
-          <div className="lg:col-span-2 bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-3">
-              <h2 className="text-lg sm:text-xl font-semibold text-neutral-900">Revenue Trend</h2>
-              <div className="flex bg-neutral-100 rounded-lg p-1">
-                {(['daily', 'weekly', 'monthly'] as const).map((period) => (
-                  <button
-                    key={period}
-                    onClick={() => setSelectedPeriod(period)}
-                    className={`px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-colors ${
-                      selectedPeriod === period
-                        ? 'bg-white text-primary-700 shadow-sm'
-                        : 'text-neutral-600 hover:text-neutral-900'
-                    }`}
-                  >
-                    {period.charAt(0).toUpperCase() + period.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="h-64 sm:h-80">
-              <Line data={chartData} options={chartOptions} />
-            </div>
-          </div>
-
-          {/* Category Breakdown */}
-          <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm">
-            <h3 className="text-base sm:text-lg font-semibold text-neutral-900 mb-4">Category Sales</h3>
-            <div className="h-64 sm:h-80">
-              <Doughnut 
-                data={categoryChartData} 
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: {
-                    legend: {
-                      position: 'bottom',
-                      labels: { 
-                        padding: 10,
-                        usePointStyle: true,
-                        font: { size: 10 }
-                      }
-                    }
-                  }
-                }} 
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Additional Insights */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8 mb-6 sm:mb-8">
-          {/* Top Products */}
-          <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm">
-            <h3 className="text-base sm:text-lg font-semibold text-neutral-900 mb-4">Top Products</h3>
-            <div className="space-y-3 sm:space-y-4">
-              {metrics.topProducts.map((product, index) => (
-                <div key={product[0]} className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                    <div className="w-6 h-6 sm:w-8 sm:h-8 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs sm:text-sm font-bold text-primary-700">{index + 1}</span>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-medium text-neutral-900 text-sm sm:text-base truncate">{product[0]}</p>
-                      <p className="text-xs sm:text-sm text-neutral-600">{product[1].quantity} units sold</p>
-                    </div>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="font-semibold text-neutral-900 text-sm sm:text-base whitespace-nowrap">{formatCurrency(product[1].revenue)}</p>
-                  </div>
-                </div>
+          <p className="text-sm sm:text-base text-neutral-600 mb-6">Your business analytics dashboard</p>
+          
+          {/* Time Range Selector */}
+          <div className="flex items-center gap-2 sm:gap-3 mb-6">
+            <div className="flex bg-white rounded-lg border border-neutral-200 p-1">
+              {(['7d', '30d', '90d', '1y'] as const).map((range) => (
+                <button
+                  key={range}
+                  onClick={() => setTimeRange(range)}
+                  className={`px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-colors ${
+                    timeRange === range
+                      ? 'bg-primary-100 text-primary-700'
+                      : 'text-neutral-600 hover:text-neutral-900'
+                  }`}
+                >
+                  {range}
+                </button>
               ))}
             </div>
           </div>
 
-          {/* Payment Methods */}
-          <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm">
-            <h3 className="text-base sm:text-lg font-semibold text-neutral-900 mb-4">Payment Methods</h3>
-            <div className="h-56 sm:h-64">
-              <Pie 
-                data={paymentChartData} 
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: {
-                    legend: {
-                      position: 'bottom',
-                      labels: { 
-                        padding: 10,
-                        usePointStyle: true,
-                        font: { size: 10 }
+          {loadingData ? (
+            <div className="text-center py-20">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+              <p className="mt-4 text-neutral-500">Loading analytics...</p>
+            </div>
+          ) : (
+            <>
+            {/* Key Metrics Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
+              <div className="relative group bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="p-1.5 sm:p-2 bg-green-100 rounded-lg">
+                    <DollarSign className="w-4 h-4 sm:w-6 sm:h-6 text-green-600" />
+                  </div>
+                  <div className={`flex items-center gap-1 text-xs sm:text-sm font-medium ${
+                    metrics.growthRate >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {metrics.growthRate >= 0 ? (
+                      <ArrowUpRight className="w-3 h-3 sm:w-4 sm:h-4" />
+                    ) : (
+                      <ArrowDownRight className="w-3 h-3 sm:w-4 sm:h-4" />
+                    )}
+                    <span className="lato-regular">{Math.abs(metrics.growthRate).toFixed(1)}%</span>
+                  </div>
+                </div>
+                <h3 className="text-lg sm:text-2xl font-bold text-neutral-900 mb-1">
+                  <span className="lato-regular">{formatCurrency(metrics.totalRevenue)}</span>
+                </h3>
+                <p className="text-xs sm:text-sm text-neutral-600">Total Revenue</p>
+                <div className="absolute bottom-full mb-2 hidden group-hover:block w-64 bg-neutral-800 text-white text-xs rounded-lg p-2 shadow-lg z-10">
+                    The total amount of money received from all sales in the selected time period.
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-[-4px] w-2 h-2 bg-neutral-800 rotate-45"></div>
+                </div>
+              </div>
+
+              <div className="relative group bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="p-1.5 sm:p-2 bg-blue-100 rounded-lg">
+                    <ShoppingCart className="w-4 h-4 sm:w-6 sm:h-6 text-blue-600" />
+                  </div>
+                </div>
+                <h3 className="text-lg sm:text-2xl font-bold text-neutral-900 mb-1">
+                  <span className="lato-regular">{formatCurrency(metrics.avgOrderValue)}</span>
+                </h3>
+                <p className="text-xs sm:text-sm text-neutral-600">Avg Order Value</p>
+                <div className="absolute bottom-full mb-2 hidden group-hover:block w-64 bg-neutral-800 text-white text-xs rounded-lg p-2 shadow-lg z-10">
+                    The average amount of money a customer spends in a single transaction.
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-[-4px] w-2 h-2 bg-neutral-800 rotate-45"></div>
+                </div>
+              </div>
+
+              <div className="relative group bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="p-1.5 sm:p-2 bg-orange-100 rounded-lg">
+                    <Users className="w-4 h-4 sm:w-6 sm:h-6 text-orange-600" />
+                  </div>
+                </div>
+                <h3 className="text-lg sm:text-2xl font-bold text-neutral-900 mb-1">
+                  <span className="lato-regular">{metrics.uniqueCustomers}</span>
+                </h3>
+                <p className="text-xs sm:text-sm text-neutral-600">Unique Customers</p>
+                <div className="absolute bottom-full mb-2 hidden group-hover:block w-64 bg-neutral-800 text-white text-xs rounded-lg p-2 shadow-lg z-10">
+                    The number of individual customers who made a purchase in the time period.
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-[-4px] w-2 h-2 bg-neutral-800 rotate-45"></div>
+                </div>
+              </div>
+
+              <div className="relative group bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="p-1.5 sm:p-2 bg-purple-100 rounded-lg">
+                    <Package className="w-4 h-4 sm:w-6 sm:h-6 text-purple-600" />
+                  </div>
+                </div>
+                <h3 className="text-lg sm:text-2xl font-bold text-neutral-900 mb-1">
+                  <span className="lato-regular">{metrics.totalOrders}</span>
+                </h3>
+                <p className="text-xs sm:text-sm text-neutral-600">Total Orders</p>
+                <div className="absolute bottom-full mb-2 hidden group-hover:block w-64 bg-neutral-800 text-white text-xs rounded-lg p-2 shadow-lg z-10">
+                    The total number of separate sales transactions completed.
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-[-4px] w-2 h-2 bg-neutral-800 rotate-45"></div>
+                </div>
+              </div>
+            </div>
+
+          {/* Charts Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8 mb-6 sm:mb-8">
+            {/* Main Revenue Chart */}
+            <div className="lg:col-span-2 bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-3">
+                <h2 className="text-lg sm:text-xl font-semibold text-neutral-900">Revenue Trend</h2>
+                <div className="flex bg-neutral-100 rounded-lg p-1">
+                  {(['daily', 'weekly', 'monthly'] as const).map((period) => (
+                    <button
+                      key={period}
+                      onClick={() => setSelectedPeriod(period)}
+                      className={`px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-colors ${
+                        selectedPeriod === period
+                          ? 'bg-white text-primary-700 shadow-sm'
+                          : 'text-neutral-600 hover:text-neutral-900'
+                      }`}
+                    >
+                      {period.charAt(0).toUpperCase() + period.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="h-64 sm:h-80">
+                <Line data={chartData} options={chartOptions} />
+              </div>
+            </div>
+
+            {/* Category Breakdown */}
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm">
+              <h3 className="text-base sm:text-lg font-semibold text-neutral-900 mb-4">Category Sales</h3>
+              <div className="h-64 sm:h-80">
+                <Doughnut 
+                  data={categoryChartData} 
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: {
+                        position: 'bottom',
+                        labels: { 
+                          padding: 10,
+                          usePointStyle: true,
+                          font: { size: 10 }
+                        }
                       }
                     }
-                  }
-                }} 
-              />
+                  }} 
+                />
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Inventory Alerts */}
-        {(metrics.lowStockItems.length > 0 || metrics.outOfStockItems.length > 0) && (
-          <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm mb-6 sm:mb-8">
-            <h3 className="text-base sm:text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-600" />
-              Inventory Alerts
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-              {metrics.lowStockItems.length > 0 && (
-                <div>
-                  <h4 className="font-medium text-yellow-800 mb-3 text-sm sm:text-base">Low Stock Items ({metrics.lowStockItems.length})</h4>
-                  <div className="space-y-2">
-                    {metrics.lowStockItems.slice(0, 5).map(item => (
-                      <div key={item.id} className="flex items-center justify-between p-2 sm:p-3 bg-yellow-50 rounded-lg">
-                        <span className="font-medium text-yellow-900 text-sm sm:text-base truncate">{item.productName}</span>
-                        <span className="text-xs sm:text-sm text-yellow-700 ml-2">{item.quantity} left</span>
+          {/* Additional Insights */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8 mb-6 sm:mb-8">
+            {/* Top Products */}
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm">
+              <h3 className="text-base sm:text-lg font-semibold text-neutral-900 mb-4">Top Products</h3>
+              <div className="space-y-3 sm:space-y-4">
+                {metrics.topProducts.map((product, index) => (
+                  <div key={product[0]} className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                      <div className="w-6 h-6 sm:w-8 sm:h-8 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <span className="text-xs sm:text-sm font-bold text-primary-700">{index + 1}</span>
                       </div>
-                    ))}
+                      <div className="min-w-0">
+                        <p className="font-medium text-neutral-900 text-sm sm:text-base truncate">{product[0]}</p>
+                        <p className="text-xs sm:text-sm text-neutral-600">{product[1].quantity} units sold</p>
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="font-semibold text-neutral-900 text-sm sm:text-base whitespace-nowrap">{formatCurrency(product[1].revenue)}</p>
+                    </div>
                   </div>
-                </div>
-              )}
-              
-              {metrics.outOfStockItems.length > 0 && (
-                <div>
-                  <h4 className="font-medium text-red-800 mb-3 text-sm sm:text-base">Out of Stock Items ({metrics.outOfStockItems.length})</h4>
-                  <div className="space-y-2">
-                    {metrics.outOfStockItems.slice(0, 5).map(item => (
-                      <div key={item.id} className="flex items-center justify-between p-2 sm:p-3 bg-red-50 rounded-lg">
-                        <span className="font-medium text-red-900 text-sm sm:text-base truncate">{item.productName}</span>
-                        <span className="text-xs sm:text-sm text-red-700 ml-2">0 in stock</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Recent Sales */}
-        <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm">
-          <h3 className="text-base sm:text-lg font-semibold text-neutral-900 mb-4">Recent Sales</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b border-neutral-200">
-                  <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-medium text-neutral-700 text-xs sm:text-sm">Order ID</th>
-                  <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-medium text-neutral-700 text-xs sm:text-sm">Customer</th>
-                  <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-medium text-neutral-700 text-xs sm:text-sm">Items</th>
-                  <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-medium text-neutral-700 text-xs sm:text-sm">Total</th>
-                  <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-medium text-neutral-700 text-xs sm:text-sm">Payment</th>
-                  <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-medium text-neutral-700 text-xs sm:text-sm">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sales.slice(0, 10).map((sale) => (
-                  <tr key={sale.id} className="border-b border-neutral-100 hover:bg-neutral-50">
-                    <td className="py-2 sm:py-3 px-2 sm:px-4 font-mono text-xs sm:text-sm text-neutral-600">
-                      {sale.purchaseRefId || 'N/A'}
-                    </td>
-                    <td className="py-2 sm:py-3 px-2 sm:px-4">
-                      <div>
-                        <p className="font-medium text-neutral-900 text-xs sm:text-sm">{sale.customerName || 'Guest'}</p>
-                        <p className="text-xs text-neutral-600">{sale.customerPhone || 'N/A'}</p>
-                      </div>
-                    </td>
-                    <td className="py-2 sm:py-3 px-2 sm:px-4 text-xs sm:text-sm text-neutral-600">
-                      {sale.cart && Array.isArray(sale.cart) ? sale.cart.length : 0} items
-                    </td>
-                    <td className="py-2 sm:py-3 px-2 sm:px-4 font-semibold text-neutral-900 text-xs sm:text-sm">
-                      <span className="lato-regular">{formatCurrency(sale.total || 0)}</span>
-                    </td>
-                    <td className="py-2 sm:py-3 px-2 sm:px-4">
-                      <span className="inline-flex items-center px-1.5 sm:px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-800">
-                        {sale.paymentMethod || 'Unknown'}
-                      </span>
-                    </td>
-                    <td className="py-2 sm:py-3 px-2 sm:px-4 text-xs sm:text-sm text-neutral-600">
-                      {sale.timestamp ? formatDate(sale.timestamp.toDate()) : 'N/A'}
-                    </td>
-                  </tr>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            </div>
+
+            {/* Payment Methods */}
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm">
+              <h3 className="text-base sm:text-lg font-semibold text-neutral-900 mb-4">Payment Methods</h3>
+              <div className="h-56 sm:h-64">
+                <Pie 
+                  data={paymentChartData} 
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: {
+                        position: 'bottom',
+                        labels: { 
+                          padding: 10,
+                          usePointStyle: true,
+                          font: { size: 10 }
+                        }
+                      }
+                    }
+                  }} 
+                />
+              </div>
+            </div>
           </div>
-        </div>
+
+          {/* Inventory Alerts */}
+          {(metrics.lowStockItems.length > 0 || metrics.outOfStockItems.length > 0) && (
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm mb-6 sm:mb-8">
+              <h3 className="text-base sm:text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-600" />
+                Inventory Alerts
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                {metrics.lowStockItems.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-yellow-800 mb-3 text-sm sm:text-base">Low Stock Items ({metrics.lowStockItems.length})</h4>
+                    <div className="space-y-2">
+                      {metrics.lowStockItems.slice(0, 5).map(item => (
+                        <div key={item.id} className="flex items-center justify-between p-2 sm:p-3 bg-yellow-50 rounded-lg">
+                          <span className="font-medium text-yellow-900 text-sm sm:text-base truncate">{item.productName}</span>
+                          <span className="text-xs sm:text-sm text-yellow-700 ml-2">{item.quantity} left</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {metrics.outOfStockItems.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-red-800 mb-3 text-sm sm:text-base">Out of Stock Items ({metrics.outOfStockItems.length})</h4>
+                    <div className="space-y-2">
+                      {metrics.outOfStockItems.slice(0, 5).map(item => (
+                        <div key={item.id} className="flex items-center justify-between p-2 sm:p-3 bg-red-50 rounded-lg">
+                          <span className="font-medium text-red-900 text-sm sm:text-base truncate">{item.productName}</span>
+                          <span className="text-xs sm:text-sm text-red-700 ml-2">0 in stock</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Recent Sales */}
+          <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm">
+            <h3 className="text-base sm:text-lg font-semibold text-neutral-900 mb-4">Recent Sales</h3>
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead>
+                  <tr className="border-b border-neutral-200">
+                    <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-medium text-neutral-700 text-xs sm:text-sm">Order ID</th>
+                    <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-medium text-neutral-700 text-xs sm:text-sm">Customer</th>
+                    <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-medium text-neutral-700 text-xs sm:text-sm">Items</th>
+                    <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-medium text-neutral-700 text-xs sm:text-sm">Total</th>
+                    <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-medium text-neutral-700 text-xs sm:text-sm">Payment</th>
+                    <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-medium text-neutral-700 text-xs sm:text-sm">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sales.slice(0, 10).map((sale) => (
+                    <tr key={sale.id} className="border-b border-neutral-100 hover:bg-neutral-50">
+                      <td className="py-2 sm:py-3 px-2 sm:px-4 font-mono text-xs sm:text-sm text-neutral-600">
+                        {sale.purchaseRefId || 'N/A'}
+                      </td>
+                      <td className="py-2 sm:py-3 px-2 sm:px-4">
+                        <div>
+                          <p className="font-medium text-neutral-900 text-xs sm:text-sm">{sale.customerName || 'Guest'}</p>
+                          <p className="text-xs text-neutral-600">{sale.customerPhone || 'N/A'}</p>
+                        </div>
+                      </td>
+                      <td className="py-2 sm:py-3 px-2 sm:px-4 text-xs sm:text-sm text-neutral-600">
+                        {sale.cart && Array.isArray(sale.cart) ? sale.cart.length : 0} items
+                      </td>
+                      <td className="py-2 sm:py-3 px-2 sm:px-4 font-semibold text-neutral-900 text-xs sm:text-sm">
+                        <span className="lato-regular">{formatCurrency(sale.total || 0)}</span>
+                      </td>
+                      <td className="py-2 sm:py-3 px-2 sm:px-4">
+                        <span className="inline-flex items-center px-1.5 sm:px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-800">
+                          {sale.paymentMethod || 'Unknown'}
+                        </span>
+                      </td>
+                      <td className="py-2 sm:py-3 px-2 sm:px-4 text-xs sm:text-sm text-neutral-600">
+                        {sale.timestamp ? formatDate(sale.timestamp.toDate()) : 'N/A'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
           </>
-        )}
-      </div>
-    </div>
+          )}
+        </>
+      )}
+    </Container>
   );
 } 

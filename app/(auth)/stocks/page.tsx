@@ -309,20 +309,19 @@ export default function VendorStocksPage() {
 
   return (
     <Container>
-      <div className="max-w-6xl mx-auto px-2 sm:px-4 py-8 w-full">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-neutral-800">Stocks</h1>
-          <div className="flex gap-2">
-            <button className="bg-primary-700 text-white font-bold text-sm sm:text-base py-1.5 px-3 sm:py-2 sm:px-4 rounded-lg shadow-md hover:bg-primary-800 transition-colors" onClick={openAddModal}>
-              Add Stock
-            </button>
-            <button className="bg-green-600 text-white font-bold text-sm sm:text-base py-1.5 px-3 sm:py-2 sm:px-4 rounded-lg shadow-md hover:bg-green-700 transition-colors flex items-center gap-2" onClick={() => { setIsScannerOpen(true); setEditingField('add'); }}>
-              <ScanLine className="w-4 h-4" />
-              <span className="hidden sm:inline">Scan & Add</span>
-              <span className="sm:hidden">Scan</span>
-            </button>
-          </div>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold text-neutral-800">Stocks</h1>
+        <div className="flex gap-2">
+          <button className="bg-primary-700 text-white font-bold text-sm sm:text-base py-1.5 px-3 sm:py-2 sm:px-4 rounded-lg shadow-md hover:bg-primary-800 transition-colors" onClick={openAddModal}>
+            Add Stock
+          </button>
+          <button className="bg-green-600 text-white font-bold text-sm sm:text-base py-1.5 px-3 sm:py-2 sm:px-4 rounded-lg shadow-md hover:bg-green-700 transition-colors flex items-center gap-2" onClick={() => { setIsScannerOpen(true); setEditingField('add'); }}>
+            <ScanLine className="w-4 h-4" />
+            <span className="hidden sm:inline">Scan & Add</span>
+            <span className="sm:hidden">Scan</span>
+          </button>
         </div>
+      </div>
         
         {/* Filters and Search */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -600,7 +599,6 @@ export default function VendorStocksPage() {
             onClose={handleScannerClose} 
           />
         )}
-      </div>
     </Container>
   );
 } 

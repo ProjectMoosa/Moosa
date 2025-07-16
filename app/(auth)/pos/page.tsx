@@ -1,7 +1,7 @@
 "use client";
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, Timestamp, addDoc, orderBy, updateDoc, increment } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, Timestamp, addDoc, orderBy, updateDoc, increment, getDoc } from 'firebase/firestore';
 import { useUser } from '@/components/useUser';
 import { useRouter } from 'next/navigation';
 import { Search, ScanBarcode, ChevronDown, Repeat, AlertTriangle, X, Percent, Tag } from 'lucide-react';
@@ -61,6 +61,10 @@ interface SaleData {
 export default function POSPage() {
   const { user, loading, role } = useUser();
   const router = useRouter();
+  
+  // Add refs for scrolling
+  const cartRef = useRef<HTMLDivElement>(null);
+  const cartItemsRef = useRef<HTMLDivElement>(null);
   
   // State Management
   const [stock, setStock] = useState<StockItem[]>([]);
@@ -209,81 +213,126 @@ export default function POSPage() {
 
     setProcessing(true);
 
-    const batch = writeBatch(db);
-    const saleTimestamp = Timestamp.now();
-
-    // 1. Update stock quantities
-    cart.forEach(item => {
-      const stockRef = doc(db, 'vendor_stocks', item.id);
-      const newQuantity = item.originalQuantity - item.quantity;
-      batch.update(stockRef, { quantity: newQuantity });
-    });
-
-    // 2. Create sale data object
-    const saleData = {
-      // Explicitly map cart items to ensure no 'undefined' values are sent to Firestore.
-      cart: cart.map(({ id, name, quantity, price, purchasePrice }) => {
-        const saleItem: any = { id, name, quantity, price };
-        if (purchasePrice !== undefined) {
-          saleItem.purchasePrice = purchasePrice;
-        }
-        return saleItem;
-      }),
-      subtotal: subtotal,
-      tax: tax,
-      discount: discount,
-      total: total,
-      paymentMethod: paymentMethod,
-      customerName: customerName || 'Guest',
-      customerPhone: customerPhone || '',
-      vendorId: user.uid,
-      timestamp: saleTimestamp,
-      purchaseRefId: `#M${String(saleTimestamp.seconds).slice(-6)}`,
-    };
-    
-    // 3. Add to top-level sales collection (for billing page)
-    const saleDocRef = doc(collection(db, 'sales'));
-    batch.set(saleDocRef, saleData);
-
-    // 4. Add to customer_details collection (for customer history)
-    if (customerPhone && customerName !== 'Guest') {
-      const customerSaleRef = doc(collection(db, 'customer_details'));
-      batch.set(customerSaleRef, saleData);
-    }
-    
-    // 5. Commit batch
-    await batch.commit();
-    
-    // 6. Add a record to the new 'points' collection if customer is registered
-    if (customerInfoId) {
-      const pointsFromSale = Math.floor(total / 200);
-      if (pointsFromSale > 0) {
-        await addDoc(collection(db, 'points'), {
-          vendorId: user.uid,
-          customerId: customerInfoId,
-          pointsEarned: pointsFromSale,
-          purchaseTotal: total,
-          purchaseRefId: saleData.purchaseRefId,
-          timestamp: saleTimestamp
-        });
+    try {
+      // Debug: Check user authentication and vendor status
+      console.log('🔍 Debug: User authentication check...');
+      console.log('🔍 Debug: User UID:', user.uid);
+      console.log('🔍 Debug: User email:', user.email);
+      
+      // Check if user exists in vendor_accounts collection
+      const vendorAccountRef = doc(db, 'vendor_accounts', user.uid);
+      const vendorAccountSnap = await getDoc(vendorAccountRef);
+      console.log('🔍 Debug: Vendor account exists:', vendorAccountSnap.exists());
+      if (vendorAccountSnap.exists()) {
+        console.log('🔍 Debug: Vendor account data:', vendorAccountSnap.data());
       }
-    }
 
-    if (andPrint) {
-      console.log("Printing receipt...");
-      // A proper implementation would print a dedicated receipt component, not the whole window.
-      // For now, we'll just log to the console.
+      const batch = writeBatch(db);
+      const saleTimestamp = Timestamp.now();
+
+      console.log('🔍 Debug: Starting sale completion...');
+      console.log('🔍 Debug: Cart items:', cart.length);
+
+      // 1. Update stock quantities
+      console.log('🔍 Debug: Updating stock quantities...');
+      cart.forEach(item => {
+        const stockRef = doc(db, 'vendor_stocks', item.id);
+        const newQuantity = item.originalQuantity - item.quantity;
+        console.log(`🔍 Debug: Updating stock ${item.id} from ${item.originalQuantity} to ${newQuantity}`);
+        batch.update(stockRef, { quantity: newQuantity });
+      });
+
+      // 2. Create sale data object
+      const saleData = {
+        // Explicitly map cart items to ensure no 'undefined' values are sent to Firestore.
+        cart: cart.map(({ id, name, quantity, price, purchasePrice }) => {
+          const saleItem: any = { id, name, quantity, price };
+          if (purchasePrice !== undefined) {
+            saleItem.purchasePrice = purchasePrice;
+          }
+          return saleItem;
+        }),
+        subtotal: subtotal,
+        tax: tax,
+        discount: discount,
+        total: total,
+        paymentMethod: paymentMethod,
+        customerName: customerName || 'Guest',
+        customerPhone: customerPhone || '',
+        vendorId: user.uid,
+        timestamp: saleTimestamp,
+        purchaseRefId: `#M${String(saleTimestamp.seconds).slice(-6)}`,
+      };
+      
+      console.log('🔍 Debug: Sale data to be saved:', saleData);
+      
+      // 3. Add to top-level sales collection (for billing page)
+      console.log('🔍 Debug: Adding to sales collection...');
+      const saleDocRef = doc(collection(db, 'sales'));
+      batch.set(saleDocRef, saleData);
+
+      // 4. Add to customer_details collection (for customer history)
+      if (customerPhone && customerName !== 'Guest') {
+        console.log('🔍 Debug: Adding to customer_details collection...');
+        const customerSaleRef = doc(collection(db, 'customer_details'));
+        batch.set(customerSaleRef, saleData);
+      }
+      
+      // 5. Commit batch
+      console.log('🔍 Debug: Committing batch...');
+      await batch.commit();
+      console.log('🔍 Debug: Batch committed successfully!');
+      
+      // 6. Add a record to the new 'points' collection if customer is registered
+      if (customerInfoId) {
+        console.log('🔍 Debug: Adding points record...');
+        const pointsFromSale = Math.floor(total / 200);
+        if (pointsFromSale > 0) {
+          await addDoc(collection(db, 'points'), {
+            vendorId: user.uid,
+            customerId: customerInfoId,
+            pointsEarned: pointsFromSale,
+            purchaseTotal: total,
+            purchaseRefId: saleData.purchaseRefId,
+            timestamp: saleTimestamp
+          });
+          console.log('🔍 Debug: Points record added successfully!');
+        }
+      }
+
+      if (andPrint) {
+        console.log("Printing receipt...");
+        // A proper implementation would print a dedicated receipt component, not the whole window.
+        // For now, we'll just log to the console.
+      }
+      
+      // 7. Clear cart and reset state
+      setCart([]);
+      setCustomerName('Guest');
+      setCustomerPhone('');
+      setCustomerInfoId(null);
+      setCustomerPoints(null);
+      setAmountPaid(null);
+      setPaymentModalOpen(false);
+      setProcessing(false);
+      alert("Sale completed successfully!");
+      
+    } catch (error: any) {
+      console.error('❌ Error in completeSale:', error);
+      console.error('❌ Error code:', error.code);
+      console.error('❌ Error message:', error.message);
+      
+      // More specific error handling
+      if (error.code === 'permission-denied') {
+        alert(`Permission denied: ${error.message}. Please check your Firestore rules.`);
+      } else if (error.code === 'unavailable') {
+        alert('Network error. Please check your internet connection and try again.');
+      } else {
+        alert(`Error completing sale: ${error.message}`);
+      }
+      
+      setProcessing(false);
     }
-    // 7. Clear cart and reset state
-    setCart([]);
-    setCustomerName('Guest');
-    setCustomerPhone('');
-    setCustomerInfoId(null);
-    setCustomerPoints(null);
-    setAmountPaid(null);
-    setPaymentModalOpen(false);
-    setProcessing(false);
-    alert("Sale completed successfully!");
   };
 
   const addToCart = useCallback((item: StockItem) => {
@@ -303,7 +352,45 @@ export default function POSPage() {
       // If item doesn't exist, add it to the cart
       return [...currentCart, { id: item.id, name: item.productName, quantity: 1, price: item.sellingPrice, originalQuantity: item.quantity, purchasePrice: item.purchasePrice }];
     });
+    
+    // Auto-scroll within cart items after adding item
+    setTimeout(() => {
+      if (cartItemsRef.current) {
+        cartItemsRef.current.scrollTo({
+          top: cartItemsRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
+    }, 100);
   }, []);
+
+  // Test function to add 3 items to cart (for demonstration)
+  const addTestItems = useCallback(() => {
+    const testItems = stock.slice(0, 3); // Take first 3 items
+    testItems.forEach(item => {
+      if (item.quantity > 0) {
+        setCart(currentCart => {
+          const existingItem = currentCart.find(cartItem => cartItem.id === item.id);
+          if (existingItem) {
+            return currentCart.map(cartItem =>
+              cartItem.id === item.id ? { ...cartItem, quantity: cartItem.quantity + 1 } : cartItem
+            );
+          }
+          return [...currentCart, { id: item.id, name: item.productName, quantity: 1, price: item.sellingPrice, originalQuantity: item.quantity, purchasePrice: item.purchasePrice }];
+        });
+      }
+    });
+    
+    // Auto-scroll within cart items after adding test items
+    setTimeout(() => {
+      if (cartItemsRef.current) {
+        cartItemsRef.current.scrollTo({
+          top: cartItemsRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
+    }, 300);
+  }, [stock]);
 
   const updateQuantity = useCallback((id: string, newQuantity: number) => {
     setCart(currentCart => {
@@ -380,64 +467,89 @@ export default function POSPage() {
   
   const formatCurrency = (amount: number) => `LKR ${amount.toFixed(2)}`;
   
-  if (loading || !user) {
-    return <div className="w-full h-screen flex items-center justify-center">Loading...</div>;
-  }
-  
   const changeToReturn = useMemo(() => {
       if(amountPaid === null || amountPaid < total) return 0;
       return amountPaid - total;
   }, [amountPaid, total]);
-
+  
+  if (loading || !user) {
+    return <div className="w-full h-screen flex items-center justify-center">Loading...</div>;
+  }
+  
   // Render JSX
   return (
     <>
       {/* Desktop View */}
-      <div className="hidden lg:block bg-neutral-50 min-h-screen">
-        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="hidden lg:block bg-gradient-to-br from-neutral-50 to-neutral-100 min-h-screen">
+        <div className="max-w-screen-2xl mx-auto px-4 lg:px-6">
           {/* Page Header */}
-          <header className="py-6 flex flex-wrap items-center justify-between gap-4">
-            <h1 className="text-2xl font-bold text-neutral-800">Point of Sale</h1>
+          <header className="py-4 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-2.5 5M7 13l2.5 5m6-5v6a2 2 0 01-2 2H9a2 2 0 01-2-2v-6m6 0V9a2 2 0 00-2-2H9a2 2 0 00-2 2v4.01" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-neutral-800">Point of Sale</h1>
+                <p className="text-xs text-neutral-600 mt-0.5">Quick and efficient sales management</p>
+              </div>
+            </div>
             <div className="flex items-center gap-2">
               <button 
+                onClick={addTestItems}
+                className="px-3 py-2 text-xs font-medium bg-yellow-100 border border-yellow-200 rounded-lg shadow-sm hover:bg-yellow-200 transition-all duration-200 flex items-center gap-2">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Add 3 Items
+              </button>
+              <button 
                 onClick={openCustomerModal}
-                className="px-4 py-2 text-sm font-medium bg-white border border-neutral-200 rounded-lg shadow-sm hover:bg-neutral-100">
+                className="px-4 py-2 text-sm font-medium bg-white border border-neutral-200 rounded-lg shadow-sm hover:bg-neutral-50 hover:border-neutral-300 transition-all duration-200 flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
                 Customer Details
               </button>
               <button 
                 onClick={initiateCheckout} 
                 disabled={processing || cart.length === 0}
-                className="px-4 py-2 text-sm font-medium text-white bg-primary-700 rounded-lg shadow-sm hover:bg-primary-800 disabled:bg-primary-300"
+                className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-primary-600 to-primary-700 rounded-lg shadow-lg hover:from-primary-700 hover:to-primary-800 disabled:from-neutral-300 disabled:to-neutral-400 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
               >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
                 {processing ? 'Processing...' : 'Complete Sale (Ctrl + Enter)'}
               </button>
             </div>
           </header>
 
           {/* Main Content */}
-          <main className="flex-1 flex flex-col lg:flex-row gap-6 p-4 md:p-6 bg-neutral-50 overflow-y-auto">
+          <main className="flex-1 flex flex-col lg:flex-row gap-6 pb-4">
             {/* Left Panel: Products */}
             <div className="lg:w-3/5 xl:w-2/3">
-              <div className="p-4 bg-white rounded-lg border border-neutral-200 shadow-sm">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Search and Controls */}
+              <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
                     <input
                       id="search-products"
                       type="text"
                       placeholder="Search by name or barcode... (Ctrl + K)"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none"
+                      className="w-full pl-10 pr-4 py-2 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none transition-all duration-200 text-sm"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <button onClick={() => setIsScannerOpen(true)} className="px-4 py-2 text-sm font-medium bg-white border border-neutral-300 rounded-lg shadow-sm hover:bg-neutral-100 flex items-center justify-center gap-2">
-                      <ScanBarcode className="w-5 h-5" /> Scan
+                  <div className="grid grid-cols-2 gap-3">
+                    <button onClick={() => setIsScannerOpen(true)} className="px-3 py-2 text-sm font-medium bg-white border border-neutral-300 rounded-lg shadow-sm hover:bg-neutral-50 hover:border-neutral-400 transition-all duration-200 flex items-center justify-center gap-2">
+                      <ScanBarcode className="w-4 h-4" /> Scan
                     </button>
                     <div className="relative">
                       <select 
-                        className="w-full h-full px-4 py-2 text-sm font-medium bg-white border border-neutral-300 rounded-lg shadow-sm hover:bg-neutral-100 focus:outline-none appearance-none"
+                        className="w-full h-full px-3 py-2 text-sm font-medium bg-white border border-neutral-300 rounded-lg shadow-sm hover:bg-neutral-50 hover:border-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 appearance-none transition-all duration-200"
                         value={selectedCategory}
                         onChange={e => setSelectedCategory(e.target.value)}
                       >
@@ -447,27 +559,76 @@ export default function POSPage() {
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-4 mt-4">
-                    <button className="px-3 py-1.5 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full hover:bg-yellow-200 flex items-center gap-1.5"><Repeat className="w-3.5 h-3.5" />Repeat Last Sale</button>
-                    {hasLowStockItems && (
-                      <button className="px-3 py-1.5 text-xs font-semibold text-red-800 bg-red-100 rounded-full hover:bg-red-200 flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5" />Low Stock Alert</button>
-                    )}
+                <div className="flex items-center gap-3 mt-3">
+                  <button className="px-3 py-1.5 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full hover:bg-yellow-200 transition-colors duration-200 flex items-center gap-1.5">
+                    <Repeat className="w-3 h-3" />
+                    Repeat Last Sale
+                  </button>
+                  {hasLowStockItems && (
+                    <button className="px-3 py-1.5 text-xs font-semibold text-red-800 bg-red-100 rounded-full hover:bg-red-200 transition-colors duration-200 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3 h-3" />
+                      Low Stock Alert
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mt-6">
+              {/* Products Grid */}
+              <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3">
                 {filteredStock.map(item => {
                   const status = getStockStatus(item);
+                  const isInCart = cart.some(c => c.id === item.id);
+                  const cartItem = cart.find(c => c.id === item.id);
+                  
                   return (
                     <div 
                       key={item.id} 
                       onClick={() => addToCart(item)}
-                      className="bg-white rounded-lg p-3 border border-neutral-200 shadow-sm cursor-pointer hover:border-primary-500 hover:ring-1 hover:ring-primary-500 relative"
+                      className={`bg-white rounded-lg p-3 border-2 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-105 relative group ${
+                        isInCart ? 'border-primary-500 ring-2 ring-primary-200 bg-primary-50' : 'border-neutral-200 hover:border-primary-300'
+                      } ${item.quantity === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
-                      <span className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full ${status.color}`} title={status.text}></span>
-                      <h3 className="text-sm font-semibold text-neutral-800 truncate pr-4">{item.productName}</h3>
-                      <p className="text-sm text-neutral-600 mt-1">{formatCurrency(item.sellingPrice)}</p>
-                      <p className="text-xs text-neutral-400 mt-1">Stock: {item.quantity}</p>
+                      {/* Status Indicator */}
+                      <span className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full ${status.color} shadow-sm`} title={status.text}></span>
+                      
+                      {/* Cart Indicator */}
+                      {isInCart && (
+                        <div className="absolute -top-1 -right-1 bg-primary-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg">
+                          {cartItem?.quantity || 1}
+                        </div>
+                      )}
+                      
+                      {/* Product Info */}
+                      <div className="mb-2">
+                        <h3 className="text-xs font-semibold text-neutral-800 truncate pr-4 leading-tight">{item.productName}</h3>
+                        {item.category && (
+                          <p className="text-xs text-neutral-500 mt-0.5">{item.category}</p>
+                        )}
+                      </div>
+                      
+                      {/* Price */}
+                      <div className="text-sm font-bold text-primary-700 mb-1">
+                        {formatCurrency(item.sellingPrice)}
+                      </div>
+                      
+                      {/* Stock Info */}
+                      <div className="text-xs text-neutral-600">
+                        Stock: {item.quantity}
+                      </div>
+                      
+                      {/* Low Stock Warning */}
+                      {item.quantity < (item.lowStockThreshold || 5) && item.quantity > 0 && (
+                        <div className="text-xs text-yellow-600 font-semibold mt-1">
+                          Only {item.quantity} left
+                        </div>
+                      )}
+                      
+                      {/* Out of Stock */}
+                      {item.quantity === 0 && (
+                        <div className="text-xs text-red-600 font-semibold mt-1">
+                          Out of stock
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -475,123 +636,174 @@ export default function POSPage() {
             </div>
 
             {/* Right Panel: Cart */}
-            <aside className="lg:w-2/5 xl:w-1/3">
-              <div className="p-5 border-b border-neutral-200">
-                <h2 className="text-lg font-semibold text-neutral-800">Current Sale ({customerName})</h2>
-              </div>
-              <div className="p-5">
-                <div className="mb-4">
-                  <label className="text-sm font-medium text-neutral-600">Payment Method</label>
-                  <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="mt-1 w-full px-3 py-2 text-sm bg-white border border-neutral-300 rounded-lg">
-                    <option>Cash</option>
-                    <option>Card</option>
-                    <option>Online</option>
-                  </select>
-                </div>
-                <div className="max-h-60 overflow-y-auto pr-2 -mr-2">
-                  {cart.length === 0 ? (
-                    <p className="text-sm text-center text-neutral-400 py-10">No items in sale</p>
-                  ) : (
-                    cart.map(item => (
-                      <div key={item.id} className="flex items-start gap-3 py-3">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-neutral-800">{item.name}</p>
-                          <p className="text-sm text-neutral-500">{formatCurrency(item.price)}</p>
-                        </div>
-                        <input
-                          type="number"
-                          value={item.quantity}
-                          onChange={e => updateQuantity(item.id, parseInt(e.target.value, 10))}
-                          className="w-16 py-1 px-2 text-sm border-neutral-300 border rounded-md"
-                          min="0"
-                        />
-                        <button onClick={() => removeFromCart(item.id)}><X className="w-4 h-4 text-neutral-500 hover:text-red-500"/></button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-              <div className="p-5 bg-neutral-50 rounded-b-lg border-t border-neutral-200">
-                {/* Tax and Discount Controls */}
-                <div className="mb-2">
-                  <button
-                    type="button"
-                    className="w-full flex items-center justify-between px-2 py-1 text-xs bg-neutral-100 rounded hover:bg-neutral-200 transition"
-                    onClick={() => setShowTaxDiscount((v) => !v)}
-                  >
-                    <span>
-                      <Percent className="inline w-4 h-4 mr-1 text-primary-600" /> Tax: {taxPercentage}%
-                      <span className="mx-2">|</span>
-                      <Tag className="inline w-4 h-4 mr-1 text-green-600" /> Discount: {discountValue}
-                      {discountType === 'percentage' ? '%' : 'LKR'}
-                    </span>
-                    <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${showTaxDiscount ? 'rotate-180' : ''}`} />
-                  </button>
-                  {showTaxDiscount && (
-                    <div className="mt-2 flex flex-col gap-2 text-xs">
-                      <div className="flex items-center gap-2">
-                        <Percent className="w-4 h-4 text-primary-600" />
-                        <input
-                          type="number"
-                          value={taxPercentage}
-                          onChange={(e) => setTaxPercentage(parseFloat(e.target.value) || 0)}
-                          className="w-16 px-2 py-1 border border-neutral-300 rounded text-xs"
-                          min="0"
-                          max="100"
-                          step="0.1"
-                        />
-                        <span>%</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Tag className="w-4 h-4 text-green-600" />
-                        <input
-                          type="number"
-                          value={discountValue}
-                          onChange={(e) => setDiscountValue(parseFloat(e.target.value) || 0)}
-                          className="w-16 px-2 py-1 border border-neutral-300 rounded text-xs"
-                          min="0"
-                          step="0.01"
-                        />
-                        <select
-                          value={discountType}
-                          onChange={(e) => setDiscountType(e.target.value as 'percentage' | 'fixed')}
-                          className="px-1 py-1 border border-neutral-300 rounded text-xs"
-                        >
-                          <option value="percentage">%</option>
-                          <option value="fixed">LKR</option>
-                        </select>
-                      </div>
+            <aside ref={cartRef} className="lg:w-2/5 xl:w-1/3 sticky top-4">
+              <div className="bg-white rounded-xl border border-neutral-200 shadow-lg overflow-hidden">
+                {/* Cart Header */}
+                <div className="p-4 border-b border-neutral-200 bg-gradient-to-r from-primary-50 to-primary-100">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-lg font-bold text-neutral-800">Current Sale</h2>
+                      <p className="text-xs text-neutral-600 mt-0.5">{customerName}</p>
                     </div>
-                  )}
+                    <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-2.5 5M7 13l2.5 5m6-5v6a2 2 0 01-2 2H9a2 2 0 01-2-2v-6m6 0V9a2 2 0 00-2-2H9a2 2 0 00-2 2v4.01" />
+                      </svg>
+                    </div>
+                  </div>
                 </div>
                 
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-neutral-600">Subtotal</span>
-                    <span className="font-medium text-neutral-800">{formatCurrency(subtotal)}</span>
+                {/* Cart Content */}
+                <div className="p-4">
+                  {/* Payment Method */}
+                  <div className="mb-4">
+                    <label className="text-xs font-medium text-neutral-700 mb-1 block">Payment Method</label>
+                    <select 
+                      value={paymentMethod} 
+                      onChange={e => setPaymentMethod(e.target.value)} 
+                      className="w-full px-3 py-2 text-sm bg-white border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-all duration-200"
+                    >
+                      <option>Cash</option>
+                      <option>Card</option>
+                      <option>Online</option>
+                    </select>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-neutral-600">Tax ({taxPercentage}%)</span>
-                    <span className="font-medium text-neutral-800">{formatCurrency(tax)}</span>
+                  
+                  {/* Cart Items */}
+                  <div ref={cartItemsRef} className="max-h-64 overflow-y-auto pr-2 -mr-2 scrollbar-thin scrollbar-thumb-neutral-300 scrollbar-track-neutral-100">
+                    {cart.length === 0 ? (
+                      <div className="text-center py-8">
+                        <div className="w-12 h-12 bg-neutral-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <svg className="w-6 h-6 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-2.5 5M7 13l2.5 5m6-5v6a2 2 0 01-2 2H9a2 2 0 01-2-2v-6m6 0V9a2 2 0 00-2-2H9a2 2 0 00-2 2v4.01" />
+                          </svg>
+                        </div>
+                        <p className="text-sm text-neutral-500">No items in cart</p>
+                        <p className="text-xs text-neutral-400 mt-1">Add products to start a sale</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {cart.map(item => (
+                          <div key={item.id} className="flex items-start gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-100">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-neutral-800 truncate">{item.name}</p>
+                              <p className="text-xs text-neutral-600 mt-0.5">{formatCurrency(item.price)}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                value={item.quantity}
+                                onChange={e => updateQuantity(item.id, parseInt(e.target.value, 10))}
+                                className="w-14 py-1 px-2 text-sm border-neutral-300 border rounded-md focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-all duration-200"
+                                min="0"
+                              />
+                              <button 
+                                onClick={() => removeFromCart(item.id)}
+                                className="p-1 hover:bg-red-100 rounded-md transition-colors duration-200"
+                              >
+                                <X className="w-3.5 h-3.5 text-neutral-500 hover:text-red-500"/>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  {discount > 0 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>Discount ({discountType === 'percentage' ? `${discountValue}%` : 'Fixed'})</span>
-                      <span className="font-medium">-{formatCurrency(discount)}</span>
+                </div>
+                
+                {/* Cart Summary */}
+                <div className="p-4 bg-gradient-to-br from-neutral-50 to-neutral-100 border-t border-neutral-200">
+                  {/* Tax and Discount Controls */}
+                  <div className="mb-3">
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between px-3 py-2 text-xs bg-white border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-all duration-200"
+                      onClick={() => setShowTaxDiscount((v) => !v)}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Percent className="w-3.5 h-3.5 text-primary-600" /> 
+                        Tax: {taxPercentage}%
+                        <span className="mx-1.5">|</span>
+                        <Tag className="w-3.5 h-3.5 text-green-600" /> 
+                        Discount: {discountValue}
+                        {discountType === 'percentage' ? '%' : 'LKR'}
+                      </span>
+                      <ChevronDown className={`w-3.5 h-3.5 ml-2 transition-transform duration-200 ${showTaxDiscount ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showTaxDiscount && (
+                      <div className="mt-3 p-3 bg-white border border-neutral-200 rounded-lg space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Percent className="w-3.5 h-3.5 text-primary-600" />
+                          <input
+                            type="number"
+                            value={taxPercentage}
+                            onChange={(e) => setTaxPercentage(parseFloat(e.target.value) || 0)}
+                            className="flex-1 px-2 py-1 border border-neutral-300 rounded-md focus:ring-2 focus:ring-primary-200 focus:border-primary-400 text-xs"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                          />
+                          <span className="text-xs text-neutral-600">%</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Tag className="w-3.5 h-3.5 text-green-600" />
+                          <input
+                            type="number"
+                            value={discountValue}
+                            onChange={(e) => setDiscountValue(parseFloat(e.target.value) || 0)}
+                            className="flex-1 px-2 py-1 border border-neutral-300 rounded-md focus:ring-2 focus:ring-primary-200 focus:border-primary-400 text-xs"
+                            min="0"
+                            step="0.01"
+                          />
+                          <select
+                            value={discountType}
+                            onChange={(e) => setDiscountType(e.target.value as 'percentage' | 'fixed')}
+                            className="px-2 py-1 border border-neutral-300 rounded-md focus:ring-2 focus:ring-primary-200 focus:border-primary-400 text-xs"
+                          >
+                            <option value="percentage">%</option>
+                            <option value="fixed">LKR</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Summary */}
+                  <div className="space-y-2 text-xs mb-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-neutral-600">Subtotal</span>
+                      <span className="font-semibold text-neutral-800">{formatCurrency(subtotal)}</span>
                     </div>
-                  )}
+                    <div className="flex justify-between items-center">
+                      <span className="text-neutral-600">Tax ({taxPercentage}%)</span>
+                      <span className="font-semibold text-neutral-800">{formatCurrency(tax)}</span>
+                    </div>
+                    {discount > 0 && (
+                      <div className="flex justify-between items-center text-green-600">
+                        <span>Discount ({discountType === 'percentage' ? `${discountValue}%` : 'Fixed'})</span>
+                        <span className="font-semibold">-{formatCurrency(discount)}</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Total */}
+                  <div className="flex justify-between items-baseline pt-3 border-t border-neutral-200">
+                    <span className="text-lg font-bold text-neutral-900">Total</span>
+                    <span className="text-xl font-bold text-primary-700">{formatCurrency(total)}</span>
+                  </div>
+                  
+                  {/* Complete Sale Button */}
+                  <button 
+                    onClick={initiateCheckout} 
+                    disabled={processing || cart.length === 0}
+                    className="mt-4 w-full px-4 py-3 text-sm font-semibold text-white bg-gradient-to-r from-primary-600 to-primary-700 rounded-lg shadow-lg hover:from-primary-700 hover:to-primary-800 disabled:from-neutral-300 disabled:to-neutral-400 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {processing ? 'Processing...' : 'Complete Sale'}
+                  </button>
                 </div>
-                <div className="flex justify-between items-baseline mt-4 pt-4 border-t border-neutral-200">
-                  <span className="text-lg font-bold text-neutral-900">Total</span>
-                  <span className="text-xl font-bold text-neutral-900">{formatCurrency(total)}</span>
-                </div>
-                <button 
-                  onClick={initiateCheckout} 
-                  disabled={processing || cart.length === 0}
-                  className="mt-4 w-full px-4 py-3 text-sm font-semibold text-white bg-primary-700 rounded-lg shadow-sm hover:bg-primary-800 disabled:bg-primary-300"
-                >
-                  {processing ? 'Processing...' : 'Complete Sale'}
-                </button>
               </div>
             </aside>
           </main>
@@ -599,70 +811,82 @@ export default function POSPage() {
       </div>
 
       {/* Mobile View */}
-      <div className="lg:hidden min-h-screen bg-neutral-50 flex flex-col">
+      <div className="lg:hidden min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 flex flex-col">
         {/* Header */}
-        <header className="bg-white border-b border-neutral-200 p-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-neutral-800">Point of Sale</h1>
-          <div className="flex items-center gap-3">
+        <header className="bg-white border-b border-neutral-200 p-3 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-2.5 5M7 13l2.5 5m6-5v6a2 2 0 01-2 2H9a2 2 0 01-2-2v-6m6 0V9a2 2 0 00-2-2H9a2 2 0 00-2 2v4.01" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-base font-bold text-neutral-800">Point of Sale</h1>
+              <p className="text-xs text-neutral-600">Quick sales management</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
             <button 
               onClick={() => setIsMobileSettingsOpen(true)}
-              className="px-3 py-1.5 text-sm font-medium bg-neutral-100 border border-neutral-200 rounded-lg hover:bg-neutral-200"
+              className="px-2 py-1.5 text-xs font-medium bg-neutral-100 border border-neutral-200 rounded-md hover:bg-neutral-200 transition-colors duration-200"
             >
               Tax/Discount
             </button>
             <button 
               onClick={openCustomerModal}
-              className="px-3 py-1.5 text-sm font-medium bg-neutral-100 border border-neutral-200 rounded-lg hover:bg-neutral-200"
+              className="px-2 py-1.5 text-xs font-medium bg-neutral-100 border border-neutral-200 rounded-md hover:bg-neutral-200 transition-colors duration-200"
             >
               Customer
             </button>
-            <button onClick={() => router.push('/dashboard')} className="text-neutral-500 hover:text-neutral-800">
-              <X size={20} />
+            <button onClick={() => router.push('/dashboard')} className="text-neutral-500 hover:text-neutral-800 p-1.5 rounded-md hover:bg-neutral-100 transition-colors duration-200">
+              <X size={16} />
             </button>
           </div>
         </header>
 
         {/* Search and Filter Bar */}
-        <div className="bg-white border-b border-neutral-200 p-4">
+        <div className="bg-white border-b border-neutral-200 p-3 shadow-sm">
           <div className="space-y-3">
             {/* Search Input */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={20} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={16} />
               <input
                 id="search-products-mobile"
                 type="text"
                 placeholder="Search by name or barcode..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-base"
+                className="w-full pl-9 pr-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm transition-all duration-200"
               />
             </div>
             
             {/* Filter Row */}
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               <div className="relative flex-1">
                 <select
                   value={selectedCategory}
                   onChange={e => setSelectedCategory(e.target.value)}
-                  className="appearance-none w-full bg-white border border-neutral-300 rounded-lg py-2.5 pl-3 pr-8 focus:ring-2 focus:ring-primary-500 text-sm"
+                  className="appearance-none w-full bg-white border border-neutral-300 rounded-lg py-2 pl-3 pr-8 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
                 >
                   {categories.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400" size={16} />
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400" size={14} />
               </div>
-              <button className="px-4 py-2.5 text-sm font-medium bg-white border border-neutral-300 rounded-lg shadow-sm hover:bg-neutral-100 flex items-center gap-2">
-                <ScanBarcode className="w-4 h-4" /> Scan
+              <button className="px-3 py-2 text-sm font-medium bg-white border border-neutral-300 rounded-lg shadow-sm hover:bg-neutral-50 hover:border-neutral-400 transition-all duration-200 flex items-center gap-1.5">
+                <ScanBarcode className="w-3.5 h-3.5" /> Scan
               </button>
             </div>
             
             {/* Action Buttons */}
-            <div className="flex gap-2">
-              <button className="px-3 py-1.5 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full hover:bg-yellow-200 flex items-center gap-1.5">
-                <Repeat className="w-3.5 h-3.5" />Repeat Last Sale
+            <div className="flex gap-1.5">
+              <button className="px-2.5 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full hover:bg-yellow-200 transition-colors duration-200 flex items-center gap-1">
+                <Repeat className="w-3 h-3" />
+                Repeat Last Sale
               </button>
               {hasLowStockItems && (
-                <button className="px-3 py-1.5 text-xs font-semibold text-red-800 bg-red-100 rounded-full hover:bg-red-200 flex items-center gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5" />Low Stock Alert
+                <button className="px-2.5 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full hover:bg-red-200 transition-colors duration-200 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  Low Stock Alert
                 </button>
               )}
             </div>
@@ -670,8 +894,8 @@ export default function POSPage() {
         </div>
 
         {/* Product Grid */}
-        <div className="flex-1 p-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <div className="flex-1 p-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {filteredStock.map(item => {
               const status = getStockStatus(item);
               const isInCart = cart.some(c => c.id === item.id);
@@ -681,49 +905,49 @@ export default function POSPage() {
                 <div
                   key={item.id}
                   onClick={() => addToCart(item)}
-                  className={`bg-white p-4 rounded-lg shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md border-2 relative ${
-                    isInCart ? 'border-primary-500 ring-2 ring-primary-200' : 'border-transparent'
+                  className={`bg-white p-3 rounded-lg shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-105 border-2 relative ${
+                    isInCart ? 'border-primary-500 ring-2 ring-primary-200 bg-primary-50' : 'border-transparent hover:border-primary-300'
                   } ${item.quantity === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {/* Status Indicator */}
                   <span 
-                    className={`absolute top-2 right-2 w-3 h-3 rounded-full ${status.color} shadow-sm`} 
+                    className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full ${status.color} shadow-sm`} 
                     title={status.text}
                   ></span>
                   
-                  {/* Product Info */}
-                  <div className="font-semibold text-sm truncate pr-6 mb-1">{item.productName}</div>
-                  {item.category && (
-                    <div className="text-xs text-neutral-500 mb-2">{item.category}</div>
-                  )}
-                  
-                  {/* Price */}
-                  <div className="text-lg font-bold text-primary-700 mb-2">
-                    {formatCurrency(item.sellingPrice)}
-                  </div>
-                  
-                  {/* Stock Info */}
-                  <div className="text-xs text-neutral-600">
-                    Stock: {item.quantity}
-                  </div>
-                  
                   {/* Cart Indicator */}
                   {isInCart && (
-                    <div className="absolute -top-1 -right-1 bg-primary-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    <div className="absolute -top-1 -right-1 bg-primary-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg">
                       {cartItem?.quantity || 1}
                     </div>
                   )}
                   
+                  {/* Product Info */}
+                  <div className="font-semibold text-xs truncate pr-4 mb-1 leading-tight">{item.productName}</div>
+                  {item.category && (
+                    <div className="text-xs text-neutral-500 mb-1">{item.category}</div>
+                  )}
+                  
+                  {/* Price */}
+                  <div className="text-sm font-bold text-primary-700 mb-1">
+                    {formatCurrency(item.sellingPrice)}
+                  </div>
+                  
+                  {/* Stock Info */}
+                  <div className="text-xs text-neutral-600 mb-1">
+                    Stock: {item.quantity}
+                  </div>
+                  
                   {/* Low Stock Warning */}
                   {item.quantity < (item.lowStockThreshold || 5) && item.quantity > 0 && (
-                    <div className="mt-2 text-xs text-yellow-600 font-semibold">
+                    <div className="text-xs text-yellow-600 font-semibold">
                       Only {item.quantity} left
                     </div>
                   )}
                   
                   {/* Out of Stock */}
                   {item.quantity === 0 && (
-                    <div className="mt-2 text-xs text-red-600 font-semibold">
+                    <div className="text-xs text-red-600 font-semibold">
                       Out of stock
                     </div>
                   )}
@@ -735,7 +959,7 @@ export default function POSPage() {
 
         {/* Checkout Footer - positioned at bottom of content */}
         {cart.length > 0 && (
-          <div className="bg-white border-t border-neutral-200 shadow-lg p-4 mt-auto">
+          <div ref={cartRef} className="bg-white border-t border-neutral-200 shadow-lg p-3 mt-auto sticky bottom-0 z-10">
             {/* Tax and Discount Summary for Mobile */}
             <div className="mb-3 text-xs space-y-1">
               <div className="flex justify-between text-neutral-600">
@@ -756,18 +980,21 @@ export default function POSPage() {
             
             <div className="flex justify-between items-center">
               <div className="flex-1">
-                <div className="text-sm text-neutral-600">
+                <div className="text-xs text-neutral-600">
                   {cart.length} item{cart.length !== 1 ? 's' : ''} • {cart.reduce((sum, item) => sum + item.quantity, 0)} total
                 </div>
-                <div className="text-xl font-bold text-neutral-900">
+                <div className="text-lg font-bold text-neutral-900">
                   {formatCurrency(total)}
                 </div>
               </div>
               <button
                 onClick={initiateCheckout}
                 disabled={processing}
-                className="bg-primary-700 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:bg-primary-800 disabled:bg-primary-300 transition-colors"
+                className="bg-gradient-to-r from-primary-600 to-primary-700 text-white font-bold py-2.5 px-4 rounded-lg shadow-lg hover:from-primary-700 hover:to-primary-800 disabled:from-neutral-300 disabled:to-neutral-400 transition-all duration-200 flex items-center gap-1.5"
               >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
                 {processing ? 'Processing...' : 'Checkout'}
               </button>
             </div>
@@ -783,6 +1010,7 @@ export default function POSPage() {
                       <h2 className="text-xl font-bold text-neutral-800">Payment Received</h2>
                       <button onClick={() => setPaymentModalOpen(false)}><X className="w-5 h-5 text-neutral-500"/></button>
                   </div>
+                  <div className="mb-2 text-lg font-bold lato-regular text-neutral-800">Total: {formatCurrency(total)}</div>
                   <div>
                       <label htmlFor="amount-paid" className="text-sm font-medium text-neutral-600">Amount Paid</label>
                       <input 

@@ -21,56 +21,6 @@ export default function DashboardPage() {
   const [recentVendors, setRecentVendors] = useState<any[]>([]);
   const router = useRouter();
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.replace('/');
-    }
-  }, [user, loading, router]);
-
-  useEffect(() => {
-    if (role !== 'admin') return; // Only fetch admin data for admins
-
-    const fetchTotalRevenue = async () => {
-      const paymentsSnap = await getDocs(collection(db, 'payment_records'));
-      const payments = paymentsSnap.docs.map(doc => doc.data());
-      const sum = payments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
-      setTotalRevenue(sum);
-    };
-    const fetchTotalStock = async () => {
-      const productsSnap = await getDocs(collection(db, 'products_master'));
-      setTotalStock(productsSnap.size);
-    };
-    const fetchVendors = async () => {
-      const vendorsSnap = await getDocs(collection(db, 'vendor_accounts'));
-      const vendors = vendorsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setTotalVendors(vendors.length);
-      setActiveVendors(vendors.filter(v => (v as any).status === 'Active' || (v as any).subscription?.status === 'Active').length);
-    };
-    const fetchRecentVendors = async () => {
-      const qVendors = query(collection(db, 'vendor_accounts'), orderBy('createdAt', 'desc'), limit(5));
-      const snap = await getDocs(qVendors);
-      setRecentVendors(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    };
-    fetchTotalRevenue();
-    fetchTotalStock();
-    fetchVendors();
-    fetchRecentVendors();
-  }, [role]);
-
-  const stats = [
-    { label: "Total Revenue", value: `LKR ${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, change: "+23%" },
-    { label: "Total Vendors", value: totalVendors.toString(), change: "+67%" },
-    { label: "Active Vendors", value: activeVendors.toString(), change: "+67%" },
-    { label: "Total Stock", value: totalStock.toString(), change: "" },
-  ];
-
-  if (loading || !user) {
-    return null;
-  }
-  if (role === 'vendor') {
-    return <VendorDashboardPage />;
-  }
-
   // Floating Add Button State
   const [fabOpen, setFabOpen] = useState(false);
 
@@ -132,6 +82,31 @@ export default function DashboardPage() {
   const [vendorSaving, setVendorSaving] = useState(false);
   const [vendorError, setVendorError] = useState('');
   const [vendorShowPassword, setVendorShowPassword] = useState(false);
+
+  // --- Plan Modal State & Logic ---
+  interface Plan {
+    id?: string;
+    name: string;
+    planId: string;
+    price: number;
+    duration: string;
+    description: string;
+    features: string[];
+    enabled?: boolean;
+  }
+  const emptyPlan: Plan = {
+    name: '',
+    planId: '',
+    price: 0,
+    duration: '',
+    description: '',
+    features: [''],
+  };
+  const [planModalOpen, setPlanModalOpen] = useState(false);
+  const [planForm, setPlanForm] = useState<Plan>(emptyPlan);
+  const [planSaving, setPlanSaving] = useState(false);
+  const [planError, setPlanError] = useState('');
+
   function openVendorModal() {
     setVendorForm({});
     setSelectedVendorPlan(null);
@@ -226,28 +201,6 @@ export default function DashboardPage() {
   }
 
   // --- Plan Modal State & Logic ---
-  interface Plan {
-    id?: string;
-    name: string;
-    planId: string;
-    price: number;
-    duration: string;
-    description: string;
-    features: string[];
-    enabled?: boolean;
-  }
-  const emptyPlan: Plan = {
-    name: '',
-    planId: '',
-    price: 0,
-    duration: '',
-    description: '',
-    features: [''],
-  };
-  const [planModalOpen, setPlanModalOpen] = useState(false);
-  const [planForm, setPlanForm] = useState<Plan>(emptyPlan);
-  const [planSaving, setPlanSaving] = useState(false);
-  const [planError, setPlanError] = useState('');
   function openPlanModal() {
     setPlanForm(emptyPlan);
     setPlanError('');
@@ -294,6 +247,56 @@ export default function DashboardPage() {
     }
   }
 
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/');
+    }
+  }, [user, loading, router]);
+
+  useEffect(() => {
+    if (role !== 'admin') return; // Only fetch admin data for admins
+
+    const fetchTotalRevenue = async () => {
+      const paymentsSnap = await getDocs(collection(db, 'payment_records'));
+      const payments = paymentsSnap.docs.map(doc => doc.data());
+      const sum = payments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+      setTotalRevenue(sum);
+    };
+    const fetchTotalStock = async () => {
+      const productsSnap = await getDocs(collection(db, 'products_master'));
+      setTotalStock(productsSnap.size);
+    };
+    const fetchVendors = async () => {
+      const vendorsSnap = await getDocs(collection(db, 'vendor_accounts'));
+      const vendors = vendorsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setTotalVendors(vendors.length);
+      setActiveVendors(vendors.filter(v => (v as any).status === 'Active' || (v as any).subscription?.status === 'Active').length);
+    };
+    const fetchRecentVendors = async () => {
+      const qVendors = query(collection(db, 'vendor_accounts'), orderBy('createdAt', 'desc'), limit(5));
+      const snap = await getDocs(qVendors);
+      setRecentVendors(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    };
+    fetchTotalRevenue();
+    fetchTotalStock();
+    fetchVendors();
+    fetchRecentVendors();
+  }, [role]);
+
+  const stats = [
+    { label: "Total Revenue", value: `LKR ${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, change: "+23%" },
+    { label: "Total Vendors", value: totalVendors.toString(), change: "+67%" },
+    { label: "Active Vendors", value: activeVendors.toString(), change: "+67%" },
+    { label: "Total Stock", value: totalStock.toString(), change: "" },
+  ];
+
+  if (loading || !user) {
+    return null;
+  }
+  if (role === 'vendor') {
+    return <VendorDashboardPage />;
+  }
+
   function handleAdd(type: 'product' | 'vendor' | 'plan') {
     setFabOpen(false);
     switch (type) {
@@ -321,9 +324,10 @@ export default function DashboardPage() {
   // Admin dashboard (default)
   return (
     <Container>
-      <div className="max-w-7xl mx-auto px-2 sm:px-4 md:px-8 py-6 sm:py-8">
-      <h1 className="text-2xl font-bold text-neutral-900 mb-1">Dashboard</h1>
-        <p className="text-neutral-500 mb-4 sm:mb-6">Welcome back! Here's what's happening with your platform.</p>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold text-neutral-800">Dashboard</h1>
+      </div>
+      <p className="text-neutral-500 mb-4 sm:mb-6">Welcome back! Here's what's happening with your platform.</p>
       {/* Stats Cards */}
         <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
         {stats.map((stat, i) => (
@@ -716,7 +720,6 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
-      </div>
-    </Container>
-  );
+      </Container>
+    );
 } 

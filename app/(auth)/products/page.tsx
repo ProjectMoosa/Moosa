@@ -6,6 +6,7 @@ import { useUser } from '@/components/useUser';
 import { useRouter } from 'next/navigation';
 import { Search } from "lucide-react";
 import { Plus } from "lucide-react";
+import Container from "@/components/Container";
 
 interface Product {
   id?: string;
@@ -180,11 +181,11 @@ export default function ProductsPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-2 sm:px-4 md:px-8 py-6 sm:py-8">
+    <Container>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
         {/* Left: Heading + Search */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-1">
-          <h1 className="text-2xl font-bold text-neutral-900 whitespace-nowrap">Products / Stock</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-neutral-800 whitespace-nowrap">Products / Stock</h1>
           <div className="relative w-full sm:w-64">
             <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
               <Search className="w-4 h-4 text-neutral-400" />
@@ -483,6 +484,6 @@ export default function ProductsPage() {
           </div>
         </div>
       )}
-    </div>
+    </Container>
   );
 } 

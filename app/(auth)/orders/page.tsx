@@ -7,6 +7,7 @@ import { X } from 'lucide-react';
 import { useUser } from '@/components/useUser';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, Timestamp, orderBy, increment } from 'firebase/firestore';
+import Container from '@/components/Container';
 
 // --- Custom Combobox Component ---
 const Combobox = ({ items, value, onSelect, placeholder }: {
@@ -420,105 +421,103 @@ export default function OrdersPage() {
   };
 
   return (
-    <div className="p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-neutral-800">Orders</h1>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="px-4 py-2 text-sm font-semibold text-white bg-primary-700 rounded-lg shadow-sm hover:bg-primary-800 flex items-center gap-2"
-          >
-            <FiPlusCircle />
-            Place New Order
-          </button>
-        </div>
-
-        <div className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-            <h2 className="text-lg font-bold text-neutral-800 mb-3">🔥 Recommended Reorders</h2>
-            {loading ? (
-                <p className="text-sm text-neutral-500">Loading stock levels...</p>
-            ) : lowStockItems.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {lowStockItems.map(item => (
-                        <div key={item.id} className="bg-white p-3 rounded-lg border flex justify-between items-center shadow-sm">
-                            <div>
-                                <p className="font-semibold">{item.productName}</p>
-                                <p className="text-sm text-red-600 font-medium">Current Stock: {item.quantity}</p>
-                            </div>
-                            <button 
-                                onClick={() => handleCreateOrderFromRecommendation(item.productName)}
-                                className="px-3 py-1.5 text-sm font-semibold text-white bg-primary-600 rounded-md hover:bg-primary-700"
-                            >
-                                Reorder
-                            </button>
-                        </div>
-                    ))}
-                </div>
-            ) : (
-                <p className="text-sm text-neutral-500">No low stock items. You're all set!</p>
-            )}
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden">
-            <table className="w-full text-sm text-left text-neutral-500">
-                <thead className="text-xs text-neutral-700 uppercase bg-neutral-50 hidden md:table-header-group">
-                    <tr>
-                        <th scope="col" className="px-6 py-3">Order ID</th>
-                        <th scope="col" className="px-6 py-3">Vendor</th>
-                        <th scope="col" className="px-6 py-3">Items</th>
-                        <th scope="col" className="px-6 py-3">Total Quantity</th>
-                        <th scope="col" className="px-6 py-3">Date</th>
-                        <th scope="col" className="px-6 py-3">Status</th>
-                        <th scope="col" className="px-6 py-3">Action</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-200 md:divide-y-0">
-                    {orders.map((order) => (
-                        <tr key={order.id} className="block md:table-row mb-4 md:mb-0 border md:border-none rounded-lg overflow-hidden">
-                           <td className="bg-neutral-50 md:bg-transparent px-4 py-3 md:table-cell md:px-6 md:py-4 font-medium text-neutral-900" data-label="Vendor">
-                                <div className="flex justify-between items-center">
-                                    <span className="font-bold md:font-medium">{order.supplierName}</span>
-                                    <span className="font-mono text-xs text-neutral-500 md:hidden">{order.orderId}</span>
-                                </div>
-                           </td>
-                            <td className="hidden md:table-cell md:px-6 md:py-4 font-mono text-xs">{order.orderId}</td>
-                            <td className="flex justify-between items-center px-4 py-3 md:table-cell md:px-6 md:py-4" data-label="Items">
-                                <span>Items</span>
-                                <span>
-                                    {order.items && order.items.length > 1 
-                                        ? `${order.items[0].product} (+${order.items.length - 1} more)` 
-                                        : order.items?.[0]?.product
-                                    }
-                                </span>
-                            </td>
-                            <td className="flex justify-between items-center px-4 py-3 md:table-cell md:px-6 md:py-4" data-label="Total Quantity">
-                                <span>Total Quantity</span>
-                                <span>{order.items?.reduce((acc, item) => acc + item.quantity, 0)}</span>
-                            </td>
-                            <td className="flex justify-between items-center px-4 py-3 md:table-cell md:px-6 md:py-4" data-label="Date">
-                                <span>Date</span>
-                                <span>{new Date(order.date.seconds * 1000).toLocaleDateString()}</span>
-                            </td>
-                            <td className="flex justify-between items-center px-4 py-3 md:table-cell md:px-6 md:py-4" data-label="Status">
-                                <span>Status</span>
-                                <StatusChanger 
-                                    currentStatus={order.status}
-                                    onStatusChange={(newStatus) => handleStatusChange(order, newStatus)}
-                                />
-                            </td>
-                            <td className="flex justify-between items-center px-4 py-3 md:table-cell md:px-6 md:py-4" data-label="Action">
-                                <span>Action</span>
-                                 <button onClick={() => handleSendWhatsApp(order)} className="text-green-500 hover:text-green-700">
-                                    <FaWhatsapp size={20} />
-                                 </button>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-
+    <Container>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold text-neutral-800">Orders</h1>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="px-4 py-2 text-sm font-semibold text-white bg-primary-700 rounded-lg shadow-sm hover:bg-primary-800 flex items-center gap-2"
+        >
+          <FiPlusCircle />
+          Place New Order
+        </button>
       </div>
+
+      <div className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <h2 className="text-lg font-bold text-neutral-800 mb-3">🔥 Recommended Reorders</h2>
+          {loading ? (
+              <p className="text-sm text-neutral-500">Loading stock levels...</p>
+          ) : lowStockItems.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {lowStockItems.map(item => (
+                      <div key={item.id} className="bg-white p-3 rounded-lg border flex justify-between items-center shadow-sm">
+                          <div>
+                              <p className="font-semibold">{item.productName}</p>
+                              <p className="text-sm text-red-600 font-medium">Current Stock: {item.quantity}</p>
+                          </div>
+                          <button 
+                              onClick={() => handleCreateOrderFromRecommendation(item.productName)}
+                              className="px-3 py-1.5 text-sm font-semibold text-white bg-primary-600 rounded-md hover:bg-primary-700"
+                          >
+                              Reorder
+                          </button>
+                      </div>
+                  ))}
+              </div>
+          ) : (
+              <p className="text-sm text-neutral-500">No low stock items. You're all set!</p>
+          )}
+      </div>
+
+      <div className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden">
+          <table className="w-full text-sm text-left text-neutral-500">
+              <thead className="text-xs text-neutral-700 uppercase bg-neutral-50 hidden md:table-header-group">
+                  <tr>
+                      <th scope="col" className="px-6 py-3">Order ID</th>
+                      <th scope="col" className="px-6 py-3">Vendor</th>
+                      <th scope="col" className="px-6 py-3">Items</th>
+                      <th scope="col" className="px-6 py-3">Total Quantity</th>
+                      <th scope="col" className="px-6 py-3">Date</th>
+                      <th scope="col" className="px-6 py-3">Status</th>
+                      <th scope="col" className="px-6 py-3">Action</th>
+                  </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-200 md:divide-y-0">
+                  {orders.map((order) => (
+                      <tr key={order.id} className="block md:table-row mb-4 md:mb-0 border md:border-none rounded-lg overflow-hidden">
+                         <td className="bg-neutral-50 md:bg-transparent px-4 py-3 md:table-cell md:px-6 md:py-4 font-medium text-neutral-900" data-label="Vendor">
+                              <div className="flex justify-between items-center">
+                                  <span className="font-bold md:font-medium">{order.supplierName}</span>
+                                  <span className="font-mono text-xs text-neutral-500 md:hidden">{order.orderId}</span>
+                              </div>
+                         </td>
+                          <td className="hidden md:table-cell md:px-6 md:py-4 font-mono text-xs">{order.orderId}</td>
+                          <td className="flex justify-between items-center px-4 py-3 md:table-cell md:px-6 md:py-4" data-label="Items">
+                              <span>Items</span>
+                              <span>
+                                  {order.items && order.items.length > 1 
+                                      ? `${order.items[0].product} (+${order.items.length - 1} more)` 
+                                      : order.items?.[0]?.product
+                                  }
+                              </span>
+                          </td>
+                          <td className="flex justify-between items-center px-4 py-3 md:table-cell md:px-6 md:py-4" data-label="Total Quantity">
+                              <span>Total Quantity</span>
+                              <span>{order.items?.reduce((acc, item) => acc + item.quantity, 0)}</span>
+                          </td>
+                          <td className="flex justify-between items-center px-4 py-3 md:table-cell md:px-6 md:py-4" data-label="Date">
+                              <span>Date</span>
+                              <span>{new Date(order.date.seconds * 1000).toLocaleDateString()}</span>
+                          </td>
+                          <td className="flex justify-between items-center px-4 py-3 md:table-cell md:px-6 md:py-4" data-label="Status">
+                              <span>Status</span>
+                              <StatusChanger 
+                                  currentStatus={order.status}
+                                  onStatusChange={(newStatus) => handleStatusChange(order, newStatus)}
+                              />
+                          </td>
+                          <td className="flex justify-between items-center px-4 py-3 md:table-cell md:px-6 md:py-4" data-label="Action">
+                              <span>Action</span>
+                               <button onClick={() => handleSendWhatsApp(order)} className="text-green-500 hover:text-green-700">
+                                  <FaWhatsapp size={20} />
+                               </button>
+                          </td>
+                      </tr>
+                  ))}
+              </tbody>
+          </table>
+      </div>
+
       <OrderModal 
         isOpen={isModalOpen} 
         onClose={handleCloseModal} 
@@ -527,6 +526,6 @@ export default function OrdersPage() {
         lowStockItems={lowStockItems}
         preselectedProduct={preselectedProduct}
       />
-    </div>
+    </Container>
   );
 }

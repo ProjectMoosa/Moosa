@@ -5,6 +5,7 @@ import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import Link from "next/link";
 import UpgradePrompt from '@/components/UpgradePrompt';
+import Container from "@/components/Container";
 
 export default function VendorDashboardPage() {
   const { businessName, user, vendor } = useUser();
@@ -59,8 +60,10 @@ export default function VendorDashboardPage() {
   }, [user]);
 
   return (
-    <div className="max-w-6xl mx-auto px-2 sm:px-4 md:px-8 py-6 sm:py-8 w-full">
-      <h1 className="text-2xl font-bold text-primary-700 mb-2">Welcome, {businessName || 'Vendor'}!</h1>
+    <Container>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold text-neutral-800">Welcome, {businessName || 'Vendor'}!</h1>
+      </div>
       <div className="mb-4 sm:mb-6 text-neutral-600">Here is your business summary.</div>
       <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
         <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-5 flex flex-col gap-1">
@@ -209,6 +212,6 @@ export default function VendorDashboardPage() {
       {showUpgradePrompt && (
         <UpgradePrompt feature="all premium features" onClose={() => setShowUpgradePrompt(false)} />
       )}
-    </div>
+    </Container>
   );
 } 

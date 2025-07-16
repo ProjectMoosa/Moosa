@@ -1,128 +1,133 @@
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
+            rules_version = '2';
+            service cloud.firestore {
+              match /databases/{database}/documents {
 
-    // --- Helper Functions ---
-    function isSuperAdminByEmail() {
-      return request.auth != null && 
-        (request.auth.token.email == 'moosa.solution@gmail.com' || 
-         request.auth.token.email == 'heytechmate@gmail.com');
-    }
+                // --- Helper Functions ---
+                function isSuperAdminByEmail() {
+                  return request.auth != null && 
+                    (request.auth.token.email == 'moosa.solution@gmail.com' || 
+                    request.auth.token.email == 'heytechmate@gmail.com');
+                }
 
-    function isSuperAdminByDoc() {
-      return request.auth != null && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
-    }
+                function isSuperAdminByDoc() {
+                  return request.auth != null && 
+                    exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
+                }
 
-    function isAuthorizedSuperAdmin() {
-      // The isSuperAdminByDoc() check is too complex for collection queries.
-      // We will rely only on the email check, which is fast and synchronous.
-      return isSuperAdminByEmail();
-    }
+                function isAuthorizedSuperAdmin() {
+                  // The isSuperAdminByDoc() check is too complex for collection queries.
+                  // We will rely only on the email check, which is fast and synchronous.
+                  return isSuperAdminByEmail();
+                }
 
-    function isVendor(userId) {
-      // A user is a vendor if their UID exists as a document in the vendor_accounts collection.
-      // This now matches the logic in UserContext.tsx.
-      return request.auth != null && request.auth.uid == userId &&
-        exists(/databases/$(database)/documents/vendor_accounts/$(request.auth.uid));
-    }
+                function isVendor(userId) {
+                  // A user is a vendor if their UID exists as a document in the vendor_accounts collection.
+                  // This now matches the logic in UserContext.tsx.
+                  return request.auth != null && request.auth.uid == userId &&
+                    exists(/databases/$(database)/documents/vendor_accounts/$(request.auth.uid));
+                }
 
-    // --- Core Rules ---
-    match /users/{userId} {
-      allow read, write: if isAuthorizedSuperAdmin() || isVendor(userId);
-    }
-    
-    // **CORRECTED VENDOR LOGIN RULE**
-    match /vendor_accounts/{accountId} {
-      allow read: if isAuthorizedSuperAdmin() || request.auth.uid == accountId;
-      allow write: if isAuthorizedSuperAdmin() || request.auth.uid == accountId;
-    }
+                // --- Core Rules ---
+                match /users/{userId} {
+                  allow read, write: if isAuthorizedSuperAdmin() || isVendor(userId);
+                }
+                
+                // **CORRECTED VENDOR LOGIN RULE**
+                match /vendor_accounts/{accountId} {
+                  allow read: if isAuthorizedSuperAdmin() || request.auth.uid == accountId;
+                  allow write: if isAuthorizedSuperAdmin() || request.auth.uid == accountId;
+                }
 
-    // --- Feature-Specific Rules ---
-    match /notifications/{notificationId} {
-      allow read, update: if request.auth.uid == resource.data.recipientId;
-      allow create: if request.auth.uid == request.resource.data.recipientId && isVendor(request.auth.uid);
-    }
-    
-    match /vendor_stocks/{stockId} {
-      allow read: if request.auth.uid == resource.data.vendorId;
-      allow create: if request.auth.uid == request.resource.data.vendorId 
-                      && isVendor(request.auth.uid)
-                      && request.resource.data.productName is string
-                      && request.resource.data.category is string
-                      && request.resource.data.quantity is number
-                      && request.resource.data.costPrice is number
-                      && request.resource.data.sellingPrice is number
-                      && request.resource.data.lowStockThreshold is number
-                      && request.resource.data.barcode is string; // Allow barcode on create
-      allow update: if request.auth.uid == resource.data.vendorId 
-                      && isVendor(request.auth.uid)
-                      && request.resource.data.quantity is number
-                      && request.resource.data.costPrice is number
-                      && request.resource.data.sellingPrice is number
-                      && request.resource.data.category is string
-                      && request.resource.data.lowStockThreshold is number
-                      && request.resource.data.barcode is string; // Allow barcode on update
-      allow delete: if request.auth.uid == resource.data.vendorId && isVendor(request.auth.uid);
-    }
-    
-    match /customer_info/{customerId} {
-      // Allow anyone to create a customer record (open registration)
-      allow create: if request.resource.data.name is string
-                    && request.resource.data.phone is string
-                    && request.resource.data.vendorId is string
-                    && request.resource.data.createdAt is timestamp
-                    && (request.resource.data.points == 0 || request.resource.data.points == null);
-      // Only vendors can read their own customer data
-      allow read: if request.auth.uid == resource.data.vendorId;
-      // Only vendors can update their own customer data
-      allow update: if isVendor(request.auth.uid) && resource.data.vendorId == request.auth.uid || isAuthorizedSuperAdmin();
-    }
+                // --- Feature-Specific Rules ---
+                match /notifications/{notificationId} {
+                  allow read, update: if request.auth.uid == resource.data.recipientId;
+                  allow create: if request.auth.uid == request.resource.data.recipientId && isVendor(request.auth.uid);
+                }
+                
+                match /vendor_stocks/{stockId} {
+                  allow read: if request.auth.uid == resource.data.vendorId;
+                  allow create: if request.auth.uid == request.resource.data.vendorId 
+                                  && isVendor(request.auth.uid)
+                                  && request.resource.data.productName is string
+                                  && request.resource.data.category is string
+                                  && request.resource.data.quantity is number
+                                  && request.resource.data.costPrice is number
+                                  && request.resource.data.sellingPrice is number
+                                  && request.resource.data.lowStockThreshold is number
+                                  && request.resource.data.barcode is string; // Allow barcode on create
+                  // FIXED: Allow update if EITHER the old OR new data has the correct vendorId
+                  allow update: if (request.auth.uid == resource.data.vendorId || request.auth.uid == request.resource.data.vendorId)
+                                  && isVendor(request.auth.uid)
+                                  && request.resource.data.quantity is number
+                                  && request.resource.data.costPrice is number
+                                  && request.resource.data.sellingPrice is number
+                                  && request.resource.data.category is string
+                                  && request.resource.data.lowStockThreshold is number
+                                  && request.resource.data.barcode is string; // Allow barcode on update
+                  allow delete: if request.auth.uid == resource.data.vendorId && isVendor(request.auth.uid);
+                }
+                
+                match /customer_info/{customerId} {
+                  // Allow anyone to create a customer record (open registration)
+                  allow create: if request.resource.data.name is string
+                                && request.resource.data.phone is string
+                                && request.resource.data.vendorId is string
+                                && request.resource.data.createdAt is timestamp
+                                && (request.resource.data.points == 0 || request.resource.data.points == null);
+                  // Only vendors can read their own customer data
+                  allow read: if request.auth.uid == resource.data.vendorId;
+                  // Only vendors can update their own customer data
+                  allow update: if isVendor(request.auth.uid) && resource.data.vendorId == request.auth.uid || isAuthorizedSuperAdmin();
+                }
 
-    match /customer_details/{saleId} {
-      allow create: if request.auth.uid == request.resource.data.vendorId;
-      allow read: if request.auth.uid == resource.data.vendorId;
-    }
+                match /customer_details/{saleId} {
+                  allow create: if request.auth.uid == request.resource.data.vendorId;
+                  allow read: if request.auth.uid == resource.data.vendorId;
+                }
 
-    match /sales/{saleId} {
-      allow create: if request.auth.uid == request.resource.data.vendorId;
-      allow read: if request.auth.uid == resource.data.vendorId;
-    }
+                match /sales/{saleId} {
+                  allow create: if request.auth.uid == request.resource.data.vendorId 
+                                  && request.resource.data.vendorId is string
+                                  && request.resource.data.cart is list
+                                  && request.resource.data.total is number
+                                  && request.resource.data.timestamp is timestamp;
+                  allow read: if request.auth.uid == resource.data.vendorId;
+                }
 
-    match /points/{pointId} {
-      allow create: if isVendor(request.auth.uid) &&
-                       request.resource.data.vendorId == request.auth.uid &&
-                       request.resource.data.customerId is string &&
-                       request.resource.data.pointsEarned is number &&
-                       request.resource.data.purchaseTotal is number &&
-                       request.resource.data.purchaseRefId is string &&
-                       request.resource.data.timestamp is timestamp;
-      allow read: if (isVendor(request.auth.uid) && resource.data.vendorId == request.auth.uid) || isAuthorizedSuperAdmin();
-      allow update, delete: if isAuthorizedSuperAdmin();
-    }
-    
-    match /vendor_orders/{orderId} {
-      allow read, write: if request.auth.uid == resource.data.vendorId;
-      allow create: if request.auth.uid == request.resource.data.vendorId;
-    }
-    
-    match /subscription_plans/{planId} {
-      allow read, write: if isAuthorizedSuperAdmin();
-    }
-    
-    match /payment_records/{paymentId} {
-        allow read, write: if isAuthorizedSuperAdmin();
-    }
+                match /points/{pointId} {
+                  allow create: if isVendor(request.auth.uid) &&
+                                  request.resource.data.vendorId == request.auth.uid &&
+                                  request.resource.data.customerId is string &&
+                                  request.resource.data.pointsEarned is number &&
+                                  request.resource.data.purchaseTotal is number &&
+                                  request.resource.data.purchaseRefId is string &&
+                                  request.resource.data.timestamp is timestamp;
+                  allow read: if (isVendor(request.auth.uid) && resource.data.vendorId == request.auth.uid) || isAuthorizedSuperAdmin();
+                  allow update, delete: if isAuthorizedSuperAdmin();
+                }
+                
+                match /vendor_orders/{orderId} {
+                  allow read, write: if request.auth.uid == resource.data.vendorId;
+                  allow create: if request.auth.uid == request.resource.data.vendorId;
+                }
+                
+                match /subscription_plans/{planId} {
+                  allow read, write: if isAuthorizedSuperAdmin();
+                }
+                
+                match /payment_records/{paymentId} {
+                    allow read, write: if isAuthorizedSuperAdmin();
+                }
 
-    match /products_master/{productId} {
-      allow read: if request.auth != null;
-      allow write: if isAuthorizedSuperAdmin();
-    }
+                match /products_master/{productId} {
+                  allow read: if request.auth != null;
+                  allow write: if isAuthorizedSuperAdmin();
+                }
 
-    // Fallback for any other collections - Super Admin only
-    match /{document=**} {
-      allow read, write: if isAuthorizedSuperAdmin();
-    }
-  }
-} 
+                // Fallback for any other collections - Super Admin only
+                match /{document=**} {
+                  allow read, write: if isAuthorizedSuperAdmin();
+                }
+              }
+            } 

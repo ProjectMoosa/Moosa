@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, DocumentData } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import Container from "@/components/Container";
 
 interface Plan {
   id?: string;
@@ -136,9 +137,11 @@ export default function SubscriptionPlansPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-2 py-8">
+    <Container>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-neutral-900">Subscription Plans</h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-neutral-800">Subscription Plans</h1>
+        </div>
         <button
           className="bg-primary-700 hover:bg-primary-800 text-white font-medium px-4 py-2 rounded-md text-sm shadow-sm transition-colors"
           onClick={() => openModal()}
@@ -303,6 +306,6 @@ export default function SubscriptionPlansPage() {
           </div>
         </div>
       )}
-    </div>
+    </Container>
   );
 } 

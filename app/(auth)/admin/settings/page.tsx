@@ -4,6 +4,7 @@ import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { useUser } from '@/components/useUser';
 import { useRouter } from "next/navigation";
+import Container from "@/components/Container";
 
 export default function AdminSettingsPage() {
   const { role } = useUser();
@@ -57,8 +58,10 @@ export default function AdminSettingsPage() {
   if (role !== "admin") return null;
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-10">
-      <h1 className="text-2xl font-bold mb-6 text-primary-700">Admin Settings</h1>
+    <Container>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold text-neutral-800">Admin Settings</h1>
+      </div>
       <form onSubmit={handleSave} className="space-y-6 bg-white p-6 rounded-xl shadow border border-neutral-100">
         <div>
           <label className="block text-sm font-medium mb-1">Support Phone</label>
@@ -72,6 +75,6 @@ export default function AdminSettingsPage() {
         {error && <div className="text-red-600 text-sm">{error}</div>}
         <button type="submit" className="w-full py-2 bg-primary-700 text-white rounded-md font-medium hover:bg-primary-800 transition" disabled={saving}>{saving ? "Saving..." : "Save Settings"}</button>
       </form>
-    </div>
+    </Container>
   );
 } 

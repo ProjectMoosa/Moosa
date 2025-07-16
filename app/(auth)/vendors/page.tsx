@@ -6,6 +6,7 @@ import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useUser } from '@/components/useUser';
 import { useRouter } from 'next/navigation';
+import Container from "@/components/Container";
 
 function formatDate(ts: any) {
   if (!ts) return "-";
@@ -390,12 +391,12 @@ export default function VendorsPage() {
   if (loading || role === 'vendor') return null;
 
   return (
-    <div className="max-w-7xl mx-auto px-2 sm:px-4 md:px-8 py-6 sm:py-8">
+    <Container>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-900 mb-1">Vendors</h1>
-          <p className="text-neutral-500">Manage your platform vendors and subscriptions</p>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-neutral-800">Vendors</h1>
         </div>
+        <p className="text-neutral-500">Manage your platform vendors and subscriptions</p>
         <button
           className="bg-primary-700 hover:bg-primary-800 text-white font-medium px-5 py-2 rounded-md text-sm shadow-sm transition-colors"
           onClick={openModal}
@@ -880,6 +881,6 @@ export default function VendorsPage() {
           </div>
         </div>
       )}
-    </div>
+    </Container>
   );
 } 

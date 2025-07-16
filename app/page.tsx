@@ -31,21 +31,21 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-neutral-50">
+    <div className="flex-1 flex items-center justify-center bg-neutral-50 px-4 py-8">
       <div className="flex flex-col items-center w-full max-w-md">
-        <h2 className="text-center text-3xl font-bold text-primary-800 mb-2">
+        <h2 className="text-center text-2xl sm:text-3xl font-bold text-primary-800 mb-2">
           Welcome to Moosa
         </h2>
-        <p className="text-center text-sm text-neutral-600 mb-6">
+        <p className="text-center text-xs sm:text-sm text-neutral-600 mb-4 sm:mb-6">
           Your cosmetics stock & billing management platform
         </p>
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: 'easeOut' }}
-          className="bg-white py-8 px-4 shadow-lg sm:rounded-xl sm:px-10 border border-neutral-100 w-full"
+          className="bg-white py-6 sm:py-8 px-4 shadow-lg sm:rounded-xl sm:px-10 border border-neutral-100 w-full"
         >
-          <form className="space-y-6" onSubmit={handleLogin}>
+          <form className="space-y-4 sm:space-y-6" onSubmit={handleLogin}>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-neutral-700">
                 Email address
@@ -59,7 +59,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 border border-neutral-200 rounded-lg shadow-sm placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 sm:text-sm transition-colors"
+                  className="appearance-none block w-full px-3 py-2 border border-neutral-200 rounded-lg shadow-sm placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm transition-colors"
                 />
               </div>
             </div>
@@ -77,7 +77,7 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 border border-neutral-200 rounded-lg shadow-sm placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 sm:text-sm transition-colors"
+                  className="appearance-none block w-full px-3 py-2 border border-neutral-200 rounded-lg shadow-sm placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm transition-colors"
                 />
               </div>
             </div>

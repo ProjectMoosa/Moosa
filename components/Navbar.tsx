@@ -16,6 +16,7 @@ export default function Navbar() {
   const { user, businessName, role, vendor, loading } = useUser();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     if (role === 'vendor' && user) {
@@ -33,8 +34,21 @@ export default function Navbar() {
   }, [role, user]);
 
   const handleSignOut = async () => {
-    await signOut(auth);
-    router.push("/");
+    if (signingOut) return; // Prevent multiple clicks
+    setSigningOut(true);
+    try {
+      await signOut(auth);
+      // Add a small delay to ensure Firebase auth state is updated
+      setTimeout(() => {
+        router.push("/");
+      }, 100);
+    } catch (error) {
+      console.error('Sign out error:', error);
+      // Force redirect even if signOut fails
+      router.push("/");
+    } finally {
+      setSigningOut(false);
+    }
   };
 
   const adminLinks = [
@@ -149,8 +163,9 @@ export default function Navbar() {
           <button
             onClick={handleSignOut}
             className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-md text-sm font-medium border border-neutral-200 transition-colors"
+            disabled={signingOut}
           >
-            Sign out
+            {signingOut ? 'Signing out...' : 'Sign out'}
           </button>
         </div>
       </div>
@@ -224,8 +239,9 @@ export default function Navbar() {
               <button
                 onClick={handleSignOut}
                 className="w-full px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-md text-sm font-medium border border-neutral-200 transition-colors text-left"
+                disabled={signingOut}
               >
-                Sign out
+                {signingOut ? 'Signing out...' : 'Sign out'}
               </button>
             </div>
           </div>
