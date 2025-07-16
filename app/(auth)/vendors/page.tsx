@@ -844,7 +844,7 @@ export default function VendorsPage() {
                   {/* Account Management Actions */}
                   <div className="bg-white rounded-lg p-6 shadow-sm">
                     <div className="font-semibold text-base mb-4">Account Management</div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <button 
                         className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors border ${
                           viewVendor.status === 'Active' 
@@ -863,14 +863,6 @@ export default function VendorsPage() {
                       >
                         <div className="font-semibold">Payment Reminder</div>
                         <div className="text-xs opacity-75">Send payment notification</div>
-                      </button>
-                      
-                      <button 
-                        className="px-4 py-3 rounded-lg bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 text-sm font-medium transition-colors" 
-                        onClick={() => checkPaymentStatus(viewVendor)}
-                      >
-                        <div className="font-semibold">Check Payment</div>
-                        <div className="text-xs opacity-75">Verify payment status</div>
                       </button>
                     </div>
                   </div>
@@ -965,7 +957,7 @@ export default function VendorsPage() {
                   {/* Account Management Actions */}
                   <div className="bg-white rounded-lg p-6 shadow-sm">
                     <div className="font-semibold text-base mb-4">Account Management</div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <button 
                         className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors border ${
                           viewVendor.status === 'Active' 
@@ -984,14 +976,6 @@ export default function VendorsPage() {
                       >
                         <div className="font-semibold">Payment Reminder</div>
                         <div className="text-xs opacity-75">Send payment notification</div>
-                      </button>
-                      
-                      <button 
-                        className="px-4 py-3 rounded-lg bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 text-sm font-medium transition-colors" 
-                        onClick={() => checkPaymentStatus(viewVendor)}
-                      >
-                        <div className="font-semibold">Check Payment</div>
-                        <div className="text-xs opacity-75">Verify payment status</div>
                       </button>
                     </div>
                   </div>
