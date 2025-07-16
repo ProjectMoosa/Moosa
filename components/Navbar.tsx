@@ -18,35 +18,24 @@ export default function Navbar() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [signingOut, setSigningOut] = useState(false);
 
-  // Don't render until user context is loaded
-  if (loading) {
-    return (
-      <nav className="sticky top-0 z-30 w-full bg-white border-b border-neutral-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-center">
-          <div className="text-neutral-500">Loading...</div>
-        </div>
-      </nav>
-    );
-  }
-
   useEffect(() => {
-    if (role === 'vendor' && user) {
-      const q = query(
-        collection(db, 'notifications'), 
-        where('recipientType', '==', 'vendor'),
-        where('recipientId', '==', user.uid), 
-        where('read', '==', false)
-      );
-      const unsub = onSnapshot(q, (snap) => {
-        setUnreadCount(snap.size);
-      });
-      return () => unsub();
-    } else {
-      // Reset unread count when not a vendor or no user
+    // Don't set up listener if still loading or not a vendor
+    if (loading || role !== 'vendor' || !user) {
       setUnreadCount(0);
       return () => {}; // Return empty cleanup function
     }
-  }, [role, user]);
+
+    const q = query(
+      collection(db, 'notifications'), 
+      where('recipientType', '==', 'vendor'),
+      where('recipientId', '==', user.uid), 
+      where('read', '==', false)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setUnreadCount(snap.size);
+    });
+    return () => unsub();
+  }, [role, user, loading]);
 
   const handleSignOut = async () => {
     if (signingOut) return; // Prevent multiple clicks
@@ -110,30 +99,34 @@ export default function Navbar() {
         </div>
         {/* Center: Nav Links */}
         <div className="hidden sm:flex flex-1 justify-center">
-          <div className="flex gap-2">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={clsx(
-                  "relative px-4 py-2 rounded-md text-sm font-medium transition-colors",
-                  pathname === link.href
-                    ? "text-primary-900 font-semibold"
-                    : "text-neutral-700 hover:text-primary-700 hover:bg-primary-50"
-                )}
-              >
-                {link.name}
-                {pathname === link.href && (
-                  <span className="absolute left-1/2 -translate-x-1/2 -bottom-1 w-8 h-0.5 bg-primary-700 rounded-full" />
-                )}
-              </Link>
-            ))}
-          </div>
+          {loading ? (
+            <div className="text-neutral-500">Loading...</div>
+          ) : (
+            <div className="flex gap-2">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={clsx(
+                    "relative px-4 py-2 rounded-md text-sm font-medium transition-colors",
+                    pathname === link.href
+                      ? "text-primary-900 font-semibold"
+                      : "text-neutral-700 hover:text-primary-700 hover:bg-primary-50"
+                  )}
+                >
+                  {link.name}
+                  {pathname === link.href && (
+                    <span className="absolute left-1/2 -translate-x-1/2 -bottom-1 w-8 h-0.5 bg-primary-700 rounded-full" />
+                  )}
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
         {/* Right: User Info & Sign Out */}
         <div className="hidden sm:flex items-center gap-4 min-w-[180px] justify-end pr-2 lg:pr-0" style={{marginRight: '-8px'}}>
           {/* Notification Bell for Vendors */}
-          {role === 'vendor' && (
+          {!loading && role === 'vendor' && (
             <div className="relative">
               <button
                 onClick={() => router.push('/notifications')}
@@ -150,13 +143,13 @@ export default function Navbar() {
               </button>
             </div>
           )}
-          {role === 'vendor' && businessName && (
+          {!loading && role === 'vendor' && businessName && (
             <div className="text-right mr-2">
               <div className="font-bold text-primary-700">{businessName}</div>
               <div className="text-xs text-neutral-500">{vendor?.vendorCode}</div>
             </div>
           )}
-          {role === 'admin' && user && (
+          {!loading && role === 'admin' && user && (
             <>
               <div className="text-right mr-2">
                 <div className="font-medium text-neutral-900">{user.email?.split('@')[0]}</div>
