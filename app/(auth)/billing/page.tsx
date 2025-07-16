@@ -381,7 +381,7 @@ export default function BillingPage() {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{sale.items.length} items</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-neutral-900">{formatCurrency(sale.total)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-neutral-900 lato-regular">{formatCurrency(sale.total)}</td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-800">
                               {sale.paymentMethod}
@@ -403,7 +403,7 @@ export default function BillingPage() {
                             <div className="text-sm text-neutral-600">{sale.customerPhone}</div>
                           </div>
                           <div className="text-right">
-                            <div className="font-semibold text-neutral-900">{formatCurrency(sale.total)}</div>
+                            <div className="font-semibold text-neutral-900 lato-regular">{formatCurrency(sale.total)}</div>
                             <div className="text-xs text-neutral-500">{formatDate(sale.timestamp)}</div>
                           </div>
                         </div>

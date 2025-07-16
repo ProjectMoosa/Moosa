@@ -663,7 +663,7 @@ export default function POSPage() {
                       </div>
                       
                       {/* Price */}
-                      <div className="text-sm font-bold text-primary-700 mb-1">
+                      <div className="text-sm font-bold text-primary-700 mb-1 lato-regular">
                         {formatCurrency(item.sellingPrice)}
                       </div>
                       
@@ -743,7 +743,7 @@ export default function POSPage() {
                           <div key={item.id} className="flex items-start gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-100">
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold text-neutral-800 truncate">{item.name}</p>
-                              <p className="text-xs text-neutral-600 mt-0.5">{formatCurrency(item.price)}</p>
+                              <p className="text-xs text-neutral-600 mt-0.5 lato-regular">{formatCurrency(item.price)}</p>
                             </div>
                             <div className="flex items-center gap-2">
                               <input
@@ -866,16 +866,16 @@ export default function POSPage() {
                   <div className="space-y-2 text-xs mb-4">
                     <div className="flex justify-between items-center">
                       <span className="text-neutral-600">Subtotal</span>
-                      <span className="font-semibold text-neutral-800">{formatCurrency(subtotal)}</span>
+                      <span className="font-semibold text-neutral-800 lato-regular">{formatCurrency(subtotal)}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-neutral-600">Tax ({taxPercentage}%)</span>
-                      <span className="font-semibold text-neutral-800">{formatCurrency(tax)}</span>
+                      <span className="font-semibold text-neutral-800 lato-regular">{formatCurrency(tax)}</span>
                     </div>
                     {discount > 0 && (
                       <div className="flex justify-between items-center text-green-600">
                         <span>Discount ({discountType === 'percentage' ? `${discountValue}%` : 'Fixed'})</span>
-                        <span className="font-semibold">-{formatCurrency(discount)}</span>
+                        <span className="font-semibold lato-regular">-{formatCurrency(discount)}</span>
                       </div>
                     )}
                     {pointsEarned > 0 && (
@@ -893,7 +893,7 @@ export default function POSPage() {
                   {/* Total */}
                   <div className="flex justify-between items-baseline pt-3 border-t border-neutral-200">
                     <span className="text-lg font-bold text-neutral-900">Total</span>
-                    <span className="text-xl font-bold text-primary-700">{formatCurrency(total)}</span>
+                    <span className="text-xl font-bold text-primary-700 lato-regular">{formatCurrency(total)}</span>
                   </div>
                   
                   {/* Complete Sale Button */}
@@ -1033,7 +1033,7 @@ export default function POSPage() {
                   )}
                   
                   {/* Price */}
-                  <div className="text-sm font-bold text-primary-700 mb-1">
+                  <div className="text-sm font-bold text-primary-700 mb-1 lato-regular">
                     {formatCurrency(item.sellingPrice)}
                   </div>
                   
@@ -1099,7 +1099,7 @@ export default function POSPage() {
                 <div className="text-xs text-neutral-600">
                   {cart.length} item{cart.length !== 1 ? 's' : ''} • {cart.reduce((sum, item) => sum + item.quantity, 0)} total
                 </div>
-                <div className="text-lg font-bold text-neutral-900">
+                <div className="text-lg font-bold text-neutral-900 lato-regular">
                   {formatCurrency(total)}
                 </div>
               </div>
@@ -1241,12 +1241,12 @@ export default function POSPage() {
                   )}
                   <div className="flex justify-between pt-1 border-t border-neutral-200">
                     <span className="font-bold">Total</span>
-                    <span className="font-bold">{formatCurrency(total)}</span>
+                    <span className="font-bold lato-regular">{formatCurrency(total)}</span>
                   </div>
                   {amountPaid && amountPaid > total && (
                     <div className="flex justify-between text-green-600">
                       <span>Change</span>
-                      <span className="font-medium">{formatCurrency(amountPaid - total)}</span>
+                      <span className="font-medium lato-regular">{formatCurrency(amountPaid - total)}</span>
                     </div>
                   )}
                 </div>
@@ -1321,7 +1321,7 @@ export default function POSPage() {
                                     <div key={index} className="text-sm bg-neutral-50 p-2 rounded-md">
                                         <div className="flex justify-between">
                                             <span>{new Date(sale.timestamp.seconds * 1000).toLocaleDateString()}</span>
-                                            <span className="font-medium">{formatCurrency(sale.total)}</span>
+                                            <span className="font-medium lato-regular">{formatCurrency(sale.total)}</span>
                                         </div>
                                     </div>
                                 ))}
@@ -1510,7 +1510,7 @@ export default function POSPage() {
                   )}
                   <div className="flex justify-between pt-1 border-t border-neutral-200">
                     <span className="font-bold">Total</span>
-                    <span className="font-bold">{formatCurrency(total)}</span>
+                    <span className="font-bold lato-regular">{formatCurrency(total)}</span>
                   </div>
                 </div>
               </div>
