@@ -1,11 +1,10 @@
 "use client";
 import { useEffect, useState, Fragment, useRef } from "react";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, DocumentData } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, DocumentData, query, where, orderBy, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useUser } from '@/components/useUser';
 import { useRouter } from 'next/navigation';
-import { Search } from "lucide-react";
-import { Plus } from "lucide-react";
+import { Search, ChevronDown, X, Plus } from "lucide-react";
 import Container from "@/components/Container";
 
 interface Product {
@@ -15,6 +14,12 @@ interface Product {
   category: string;
   description: string;
   price: number;
+}
+
+interface SuggestionItem {
+  value: string;
+  count: number;
+  lastUsed?: Date;
 }
 
 const emptyProduct: Product = {
@@ -33,6 +38,7 @@ export default function ProductsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState<Product>(emptyProduct);
+  const [priceInput, setPriceInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [sortBy, setSortBy] = useState<keyof Product | "">("");
@@ -48,6 +54,18 @@ export default function ProductsPage() {
   const columnsDropdownRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");
 
+  // Auto-complete states
+  const [brandSuggestions, setBrandSuggestions] = useState<SuggestionItem[]>([]);
+  const [categorySuggestions, setCategorySuggestions] = useState<SuggestionItem[]>([]);
+  const [showBrandDropdown, setShowBrandDropdown] = useState(false);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [brandInput, setBrandInput] = useState("");
+  const [categoryInput, setCategoryInput] = useState("");
+  const [filteredBrands, setFilteredBrands] = useState<SuggestionItem[]>([]);
+  const [filteredCategories, setFilteredCategories] = useState<SuggestionItem[]>([]);
+  const brandDropdownRef = useRef<HTMLDivElement>(null);
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!loading && role === 'vendor') {
       router.replace('/dashboard');
@@ -56,21 +74,28 @@ export default function ProductsPage() {
 
   if (loading || role === 'vendor') return null;
 
-  // Fetch products
+  // Fetch products and suggestions
   useEffect(() => {
     fetchProducts();
+    fetchSuggestions();
   }, []);
 
+  // Close dropdowns when clicking outside
   useEffect(() => {
-    if (!showColumnsDropdown) return;
-    function handleClick(e: MouseEvent) {
-      if (columnsDropdownRef.current && !columnsDropdownRef.current.contains(e.target as Node)) {
+    function handleClickOutside(event: MouseEvent) {
+      if (brandDropdownRef.current && !brandDropdownRef.current.contains(event.target as Node)) {
+        setShowBrandDropdown(false);
+      }
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target as Node)) {
+        setShowCategoryDropdown(false);
+      }
+      if (columnsDropdownRef.current && !columnsDropdownRef.current.contains(event.target as Node)) {
         setShowColumnsDropdown(false);
       }
     }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [showColumnsDropdown]);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   async function fetchProducts() {
     setProductsLoading(true);
@@ -83,10 +108,69 @@ export default function ProductsPage() {
     setProductsLoading(false);
   }
 
+  async function fetchSuggestions() {
+    try {
+      const productsSnapshot = await getDocs(collection(db, "products_master"));
+      const brands = new Map<string, number>();
+      const categories = new Map<string, number>();
+
+      productsSnapshot.docs.forEach((doc) => {
+        const data = doc.data();
+        if (data.brand) {
+          brands.set(data.brand, (brands.get(data.brand) || 0) + 1);
+        }
+        if (data.category) {
+          categories.set(data.category, (categories.get(data.category) || 0) + 1);
+        }
+      });
+
+      const brandSuggestions = Array.from(brands.entries())
+        .map(([value, count]) => ({ value, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 20);
+
+      const categorySuggestions = Array.from(categories.entries())
+        .map(([value, count]) => ({ value, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 20);
+
+      setBrandSuggestions(brandSuggestions);
+      setCategorySuggestions(categorySuggestions);
+    } catch (error) {
+      console.error("Error fetching suggestions:", error);
+    }
+  }
+
+  // Get recent entries (last 10 products)
+  function getRecentEntries() {
+    return products.slice(0, 10).map(product => ({
+      brand: product.brand,
+      category: product.category
+    }));
+  }
+
+  // Filter suggestions based on input
+  useEffect(() => {
+    const filteredBrands = brandSuggestions.filter(item =>
+      item.value.toLowerCase().includes(brandInput.toLowerCase())
+    );
+    setFilteredBrands(filteredBrands);
+  }, [brandInput, brandSuggestions]);
+
+  useEffect(() => {
+    const filteredCategories = categorySuggestions.filter(item =>
+      item.value.toLowerCase().includes(categoryInput.toLowerCase())
+    );
+    setFilteredCategories(filteredCategories);
+  }, [categoryInput, categorySuggestions]);
+
   // Open modal for add/edit
   function openModal(product?: Product) {
     setEditing(product || null);
     setForm(product ? { ...product } : emptyProduct);
+    setBrandInput(product?.brand || "");
+    setCategoryInput(product?.category || "");
+    setPriceInput(product?.price ? product.price.toString() : "");
     setError("");
     setModalOpen(true);
   }
@@ -95,13 +179,80 @@ export default function ProductsPage() {
     setModalOpen(false);
     setEditing(null);
     setForm(emptyProduct);
+    setBrandInput("");
+    setCategoryInput("");
+    setPriceInput("");
     setError("");
+    setShowBrandDropdown(false);
+    setShowCategoryDropdown(false);
   }
 
   // Handle form change
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     const { name, value } = e.target;
-    setForm((f) => ({ ...f, [name]: name === "price" ? Number(value) : value }));
+    if (name === "price") {
+      setPriceInput(value);
+      setForm((f) => ({ ...f, [name]: value === "" ? 0 : Number(value) }));
+    } else {
+      setForm((f) => ({ ...f, [name]: value }));
+    }
+  }
+
+  // Handle price input specifically
+  function handlePriceInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value;
+    setPriceInput(value);
+    setForm(prev => ({ ...prev, price: value === "" ? 0 : Number(value) }));
+  }
+
+  // Handle brand input
+  function handleBrandInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value;
+    setBrandInput(value);
+    setForm(prev => ({ ...prev, brand: value }));
+    setShowBrandDropdown(true);
+  }
+
+  // Handle category input
+  function handleCategoryInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value;
+    setCategoryInput(value);
+    setForm(prev => ({ ...prev, category: value }));
+    setShowCategoryDropdown(true);
+  }
+
+  // Handle keyboard navigation for brand
+  function handleBrandKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter' && filteredBrands.length === 0 && brandInput.length > 0) {
+      e.preventDefault();
+      selectBrand(brandInput);
+    } else if (e.key === 'Escape') {
+      setShowBrandDropdown(false);
+    }
+  }
+
+  // Handle keyboard navigation for category
+  function handleCategoryKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter' && filteredCategories.length === 0 && categoryInput.length > 0) {
+      e.preventDefault();
+      selectCategory(categoryInput);
+    } else if (e.key === 'Escape') {
+      setShowCategoryDropdown(false);
+    }
+  }
+
+  // Select brand suggestion
+  function selectBrand(brand: string) {
+    setBrandInput(brand);
+    setForm(prev => ({ ...prev, brand }));
+    setShowBrandDropdown(false);
+  }
+
+  // Select category suggestion
+  function selectCategory(category: string) {
+    setCategoryInput(category);
+    setForm(prev => ({ ...prev, category }));
+    setShowCategoryDropdown(false);
   }
 
   // Add or update product
@@ -118,6 +269,7 @@ export default function ProductsPage() {
         await addDoc(collection(db, "products_master"), form as any);
       }
       await fetchProducts();
+      await fetchSuggestions(); // Refresh suggestions
       closeModal();
     } catch (err: any) {
       setError(err.message || "Error saving product");
@@ -415,38 +567,189 @@ export default function ProductsPage() {
                   name="name"
                   value={form.name}
                   onChange={handleChange}
-                  className="mt-1 block w-full border border-neutral-200 rounded-md px-3 py-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                  className="mt-1 block w-full border border-neutral-200 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-100 focus:border-primary-500 focus:outline-none text-sm transition-colors"
+                  placeholder="Enter product name"
                   required
                 />
               </div>
-              <div>
+              
+              <div className="relative">
                 <label className="block text-sm font-medium text-neutral-700">Brand</label>
-                <input
-                  name="brand"
-                  value={form.brand}
-                  onChange={handleChange}
-                  className="mt-1 block w-full border border-neutral-200 rounded-md px-3 py-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                  required
-                />
+                <div className="relative">
+                  <input
+                    name="brand"
+                    value={brandInput}
+                    onChange={handleBrandInput}
+                    onFocus={() => setShowBrandDropdown(true)}
+                    onKeyDown={handleBrandKeyDown}
+                    className="mt-1 block w-full border border-neutral-200 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-100 focus:border-primary-500 focus:outline-none text-sm pr-8 transition-colors"
+                    placeholder="Type to search or create new"
+                    required
+                  />
+                  <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-neutral-400" />
+                </div>
+                {showBrandDropdown && (
+                  <div ref={brandDropdownRef} className="absolute z-20 mt-1 w-full bg-white border border-neutral-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                    {filteredBrands.length === 0 && brandInput.length > 0 ? (
+                      <div className="px-4 py-2 text-sm text-neutral-500">
+                        Press Enter to create "{brandInput}"
+                      </div>
+                    ) : (
+                      <>
+                        {filteredBrands.length > 0 && (
+                          <>
+                            <div className="px-4 py-2 text-xs font-medium text-neutral-500 bg-neutral-50 border-b border-neutral-100">
+                              Matching brands ({filteredBrands.length})
+                            </div>
+                            {filteredBrands.slice(0, 8).map((item) => (
+                              <div
+                                key={item.value}
+                                className="px-4 py-2 cursor-pointer hover:bg-neutral-50 text-sm border-b border-neutral-100 last:border-b-0"
+                                onClick={() => selectBrand(item.value)}
+                              >
+                                <div className="font-medium">{item.value}</div>
+                                <div className="text-xs text-neutral-500">{item.count} products</div>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                        {filteredBrands.length === 0 && brandSuggestions.length > 0 && (
+                          <>
+                            <div className="px-4 py-2 text-xs font-medium text-neutral-500 bg-neutral-50 border-b border-neutral-100">
+                              Popular brands
+                            </div>
+                            {brandSuggestions.slice(0, 5).map((item) => (
+                              <div
+                                key={item.value}
+                                className="px-4 py-2 cursor-pointer hover:bg-neutral-50 text-sm border-b border-neutral-100 last:border-b-0"
+                                onClick={() => selectBrand(item.value)}
+                              >
+                                <div className="font-medium">{item.value}</div>
+                                <div className="text-xs text-neutral-500">{item.count} products</div>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                        {getRecentEntries().length > 0 && (
+                          <>
+                            <div className="px-4 py-2 text-xs font-medium text-neutral-500 bg-neutral-50 border-b border-neutral-100">
+                              Recent brands
+                            </div>
+                            {getRecentEntries()
+                              .map(entry => entry.brand)
+                              .filter((brand, index, arr) => arr.indexOf(brand) === index)
+                              .slice(0, 3)
+                              .map((brand) => (
+                                <div
+                                  key={brand}
+                                  className="px-4 py-2 cursor-pointer hover:bg-neutral-50 text-sm border-b border-neutral-100 last:border-b-0"
+                                  onClick={() => selectBrand(brand)}
+                                >
+                                  <div className="font-medium">{brand}</div>
+                                  <div className="text-xs text-neutral-500">Recently used</div>
+                                </div>
+                              ))}
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
-              <div>
+
+              <div className="relative">
                 <label className="block text-sm font-medium text-neutral-700">Category</label>
-                <input
-                  name="category"
-                  value={form.category}
-                  onChange={handleChange}
-                  className="mt-1 block w-full border border-neutral-200 rounded-md px-3 py-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                  required
-                />
+                <div className="relative">
+                  <input
+                    name="category"
+                    value={categoryInput}
+                    onChange={handleCategoryInput}
+                    onFocus={() => setShowCategoryDropdown(true)}
+                    onKeyDown={handleCategoryKeyDown}
+                    className="mt-1 block w-full border border-neutral-200 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-100 focus:border-primary-500 focus:outline-none text-sm pr-8 transition-colors"
+                    placeholder="Type to search or create new"
+                    required
+                  />
+                  <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-neutral-400" />
+                </div>
+                {showCategoryDropdown && (
+                  <div ref={categoryDropdownRef} className="absolute z-20 mt-1 w-full bg-white border border-neutral-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                    {filteredCategories.length === 0 && categoryInput.length > 0 ? (
+                      <div className="px-4 py-2 text-sm text-neutral-500">
+                        Press Enter to create "{categoryInput}"
+                      </div>
+                    ) : (
+                      <>
+                        {filteredCategories.length > 0 && (
+                          <>
+                            <div className="px-4 py-2 text-xs font-medium text-neutral-500 bg-neutral-50 border-b border-neutral-100">
+                              Matching categories ({filteredCategories.length})
+                            </div>
+                            {filteredCategories.slice(0, 8).map((item) => (
+                              <div
+                                key={item.value}
+                                className="px-4 py-2 cursor-pointer hover:bg-neutral-50 text-sm border-b border-neutral-100 last:border-b-0"
+                                onClick={() => selectCategory(item.value)}
+                              >
+                                <div className="font-medium">{item.value}</div>
+                                <div className="text-xs text-neutral-500">{item.count} products</div>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                        {filteredCategories.length === 0 && categorySuggestions.length > 0 && (
+                          <>
+                            <div className="px-4 py-2 text-xs font-medium text-neutral-500 bg-neutral-50 border-b border-neutral-100">
+                              Popular categories
+                            </div>
+                            {categorySuggestions.slice(0, 5).map((item) => (
+                              <div
+                                key={item.value}
+                                className="px-4 py-2 cursor-pointer hover:bg-neutral-50 text-sm border-b border-neutral-100 last:border-b-0"
+                                onClick={() => selectCategory(item.value)}
+                              >
+                                <div className="font-medium">{item.value}</div>
+                                <div className="text-xs text-neutral-500">{item.count} products</div>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                        {getRecentEntries().length > 0 && (
+                          <>
+                            <div className="px-4 py-2 text-xs font-medium text-neutral-500 bg-neutral-50 border-b border-neutral-100">
+                              Recent categories
+                            </div>
+                            {getRecentEntries()
+                              .map(entry => entry.category)
+                              .filter((category, index, arr) => arr.indexOf(category) === index)
+                              .slice(0, 3)
+                              .map((category) => (
+                                <div
+                                  key={category}
+                                  className="px-4 py-2 cursor-pointer hover:bg-neutral-50 text-sm border-b border-neutral-100 last:border-b-0"
+                                  onClick={() => selectCategory(category)}
+                                >
+                                  <div className="font-medium">{category}</div>
+                                  <div className="text-xs text-neutral-500">Recently used</div>
+                                </div>
+                              ))}
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
+
               <div>
                 <label className="block text-sm font-medium text-neutral-700">Description</label>
                 <textarea
                   name="description"
                   value={form.description}
                   onChange={handleChange}
-                  className="mt-1 block w-full border border-neutral-200 rounded-md px-3 py-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                  className="mt-1 block w-full border border-neutral-200 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-100 focus:border-primary-500 focus:outline-none text-sm transition-colors"
                   rows={2}
+                  placeholder="Enter product description"
                   required
                 />
               </div>
@@ -455,9 +758,10 @@ export default function ProductsPage() {
                 <input
                   name="price"
                   type="number"
-                  value={form.price}
-                  onChange={handleChange}
-                  className="mt-1 block w-full border border-neutral-200 rounded-md px-3 py-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                  value={priceInput}
+                  onChange={handlePriceInput}
+                  className="mt-1 block w-full border border-neutral-200 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-100 focus:border-primary-500 focus:outline-none text-sm transition-colors"
+                  placeholder="Enter price"
                   required
                   min={0}
                 />
