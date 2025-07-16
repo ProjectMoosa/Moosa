@@ -64,12 +64,12 @@ export default function BillingPage() {
   const [isManualAddModalOpen, setManualAddModalOpen] = useState(false);
   const [isLoyaltyConfigModalOpen, setLoyaltyConfigModalOpen] = useState(false);
   const [loyaltyConfig, setLoyaltyConfig] = useState<LoyaltyConfig>({
-    pointsPerRupee: 0.1, // 1 point per Rs. 10 spent (typical Sri Lankan ratio)
+    pointsPerRupee: 0.02, // 1 point per Rs. 50 spent (simpler ratio)
     minimumPurchase: 100,
     bonusPoints: 50,
     bonusThreshold: 1000,
     welcomePoints: 100,
-    pointsRedemptionValue: 1.0, // 1 point = Rs. 1 (typical Sri Lankan redemption)
+    pointsRedemptionValue: 1.0, // 1 point = Rs. 1 (simple redemption)
     isEnabled: true
   });
   const [registrationUrl, setRegistrationUrl] = useState('');
@@ -735,18 +735,21 @@ function LoyaltyConfigModal({ isOpen, onClose, config, onSave }: LoyaltyConfigMo
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-2">
-                Points per Rupee
+                Rupees per Point (Earning)
               </label>
               <input
                 type="number"
-                step="0.01"
-                min="0"
-                value={formData.pointsPerRupee}
-                onChange={(e) => handleInputChange('pointsPerRupee', e.target.value)}
+                step="1"
+                min="1"
+                value={formData.pointsPerRupee > 0 ? Math.round(1 / formData.pointsPerRupee) : 50}
+                onChange={(e) => {
+                  const rupeesPerPoint = parseInt(e.target.value) || 50;
+                  handleInputChange('pointsPerRupee', 1 / rupeesPerPoint);
+                }}
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                placeholder="0.1"
+                placeholder="50"
               />
-              <p className="text-xs text-neutral-500 mt-1">How many points customers earn per rupee spent (e.g., 0.1 = 1 point per Rs. 10)</p>
+              <p className="text-xs text-neutral-500 mt-1">How many rupees spent to earn 1 point (e.g., 50 = Rs. 50 spent = 1 point earned)</p>
             </div>
 
             <div>
@@ -762,7 +765,7 @@ function LoyaltyConfigModal({ isOpen, onClose, config, onSave }: LoyaltyConfigMo
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 placeholder="1.0"
               />
-              <p className="text-xs text-neutral-500 mt-1">How much Rs. each point is worth when redeeming (e.g., 1.0 = 1 point = Rs. 1)</p>
+              <p className="text-xs text-neutral-500 mt-1">How much Rs. each point is worth when redeeming (1.0 = 1 point = Rs. 1)</p>
             </div>
           </div>
 
@@ -838,9 +841,11 @@ function LoyaltyConfigModal({ isOpen, onClose, config, onSave }: LoyaltyConfigMo
               For a Rs. 1,500 purchase:
             </p>
             <ul className="text-sm text-primary-700 mt-2 space-y-1">
+              <li>• Rupees per point: {formData.pointsPerRupee > 0 ? Math.round(1 / formData.pointsPerRupee) : 50}</li>
               <li>• Base points: {Math.floor(1500 * formData.pointsPerRupee)}</li>
               <li>• Bonus points: {1500 >= formData.bonusThreshold ? formData.bonusPoints : 0}</li>
               <li>• Total points: {Math.floor(1500 * formData.pointsPerRupee) + (1500 >= formData.bonusThreshold ? formData.bonusPoints : 0)}</li>
+              <li>• Points value: Rs. {((Math.floor(1500 * formData.pointsPerRupee) + (1500 >= formData.bonusThreshold ? formData.bonusPoints : 0)) * formData.pointsRedemptionValue).toFixed(2)}</li>
             </ul>
           </div>
 
