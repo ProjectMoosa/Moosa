@@ -13,6 +13,275 @@ body {
   background: rgb(var(--background-end-rgb));
 }
 
+/* NUCLEAR OPTION - Remove ALL default browser focus styles and apply consistent theme */
+* {
+  outline: none !important;
+}
+
+/* Universal focus override for ALL elements with maximum specificity */
+*:focus,
+*:focus-visible,
+*:focus-within {
+  outline: none !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  -webkit-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  -moz-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  --tw-ring-color: #3b82f6 !important;
+  --tw-ring-opacity: 0.2 !important;
+}
+
+/* Remove ALL browser default styles */
+input, textarea, select, button, [contenteditable] {
+  outline: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  border-color: #d1d5db !important;
+}
+
+/* Override focus states for all form elements with maximum specificity */
+input:focus, textarea:focus, select:focus, button:focus, [contenteditable]:focus,
+input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible, [contenteditable]:focus-visible {
+  outline: none !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  -webkit-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  -moz-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  --tw-ring-color: #3b82f6 !important;
+  --tw-ring-opacity: 0.2 !important;
+}
+
+/* Override ALL Tailwind focus classes with maximum specificity */
+.focus\:ring-blue-500:focus,
+.focus\:ring-2:focus,
+.focus\:ring:focus,
+.focus\:ring-primary-500:focus,
+.focus\:ring-primary-100:focus,
+.focus\:ring-primary-200:focus,
+.focus\:ring-primary-400:focus,
+.focus\:ring-primary-700:focus,
+.focus\:ring-offset-2:focus,
+.focus\:ring-offset:focus,
+.focus\:border-blue-500:focus,
+.focus\:border:focus,
+.focus\:border-primary-500:focus,
+.focus\:border-primary-700:focus,
+.focus\:outline-none:focus {
+  outline: none !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  -webkit-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  -moz-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  --tw-ring-color: #3b82f6 !important;
+  --tw-ring-opacity: 0.2 !important;
+}
+
+/* Additional comprehensive selectors to catch all possible blue focus styles */
+input:focus,
+textarea:focus,
+select:focus,
+button:focus,
+[contenteditable]:focus,
+input.focus\:ring-blue-500:focus,
+input.focus\:ring-2:focus,
+input.focus\:ring:focus,
+input.focus\:ring-primary-500:focus,
+input.focus\:ring-primary-100:focus,
+input.focus\:ring-primary-200:focus,
+input.focus\:ring-primary-400:focus,
+input.focus\:ring-primary-700:focus,
+input.focus\:ring-offset-2:focus,
+input.focus\:ring-offset:focus,
+input.focus\:border-blue-500:focus,
+input.focus\:border:focus,
+input.focus\:border-primary-500:focus,
+input.focus\:border-primary-700:focus,
+input.focus\:outline-none:focus,
+textarea.focus\:ring-blue-500:focus,
+textarea.focus\:ring-2:focus,
+textarea.focus\:ring:focus,
+textarea.focus\:ring-primary-500:focus,
+textarea.focus\:ring-primary-100:focus,
+textarea.focus\:ring-primary-200:focus,
+textarea.focus\:ring-primary-400:focus,
+textarea.focus\:ring-primary-700:focus,
+textarea.focus\:ring-offset-2:focus,
+textarea.focus\:ring-offset:focus,
+textarea.focus\:border-blue-500:focus,
+textarea.focus\:border:focus,
+textarea.focus\:border-primary-500:focus,
+textarea.focus\:border-primary-700:focus,
+textarea.focus\:outline-none:focus,
+select.focus\:ring-blue-500:focus,
+select.focus\:ring-2:focus,
+select.focus\:ring:focus,
+select.focus\:ring-primary-500:focus,
+select.focus\:ring-primary-100:focus,
+select.focus\:ring-primary-200:focus,
+select.focus\:ring-primary-400:focus,
+select.focus\:ring-primary-700:focus,
+select.focus\:ring-offset-2:focus,
+select.focus\:ring-offset:focus,
+select.focus\:border-blue-500:focus,
+select.focus\:border:focus,
+select.focus\:border-primary-500:focus,
+select.focus\:border-primary-700:focus,
+select.focus\:outline-none:focus {
+  outline: none !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  -webkit-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  -moz-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  --tw-ring-color: #3b82f6 !important;
+  --tw-ring-opacity: 0.2 !important;
+}
+
+/* Specific overrides for common input patterns */
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="tel"]:focus,
+input[type="url"]:focus,
+input[type="search"]:focus,
+input[type="date"]:focus,
+input[type="time"]:focus,
+input[type="datetime-local"]:focus,
+input[type="month"]:focus,
+input[type="week"]:focus,
+input[type="color"]:focus,
+input[type="file"]:focus,
+input[type="range"]:focus,
+input[type="radio"]:focus,
+input[type="checkbox"]:focus,
+textarea:focus,
+select:focus,
+button:focus {
+  outline: none !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  -webkit-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  -moz-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  --tw-ring-color: #3b82f6 !important;
+  --tw-ring-opacity: 0.2 !important;
+}
+
+/* Browser-specific overrides */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* For Firefox */
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+/* Remove webkit specific focus styles */
+input::-webkit-focus-inner,
+button::-webkit-focus-inner {
+  border: 0;
+  outline: none;
+}
+
+/* Override any remaining browser defaults */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  outline: none !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  -webkit-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  -moz-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  --tw-ring-color: #3b82f6 !important;
+  --tw-ring-opacity: 0.2 !important;
+}
+
+/* Force override any blue browser defaults - FINAL NUCLEAR OPTION */
+input:focus,
+textarea:focus,
+select:focus,
+button:focus,
+[contenteditable]:focus,
+*:focus,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible,
+[contenteditable]:focus-visible,
+*:focus-visible {
+  outline: none !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  -webkit-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  -moz-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  --tw-ring-color: #3b82f6 !important;
+  --tw-ring-opacity: 0.2 !important;
+}
+
+/* EXTREME OVERRIDE - Target every possible input scenario */
+input,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="tel"],
+input[type="url"],
+input[type="search"],
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="month"],
+input[type="week"],
+input[type="color"],
+input[type="file"],
+input[type="range"],
+input[type="radio"],
+input[type="checkbox"],
+textarea,
+select,
+button,
+[contenteditable] {
+  outline: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+}
+
+input:focus,
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="number"]:focus,
+input[type="tel"]:focus,
+input[type="url"]:focus,
+input[type="search"]:focus,
+input[type="date"]:focus,
+input[type="time"]:focus,
+input[type="datetime-local"]:focus,
+input[type="month"]:focus,
+input[type="week"]:focus,
+input[type="color"]:focus,
+input[type="file"]:focus,
+input[type="range"]:focus,
+input[type="radio"]:focus,
+input[type="checkbox"]:focus,
+textarea:focus,
+select:focus,
+button:focus,
+[contenteditable]:focus {
+  outline: none !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  -webkit-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  -moz-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  --tw-ring-color: #3b82f6 !important;
+  --tw-ring-opacity: 0.2 !important;
+}
+
 /* Custom Scrollbar Styles */
 .scrollbar-thin {
   scrollbar-width: thin;
