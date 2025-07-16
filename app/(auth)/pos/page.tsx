@@ -4,7 +4,7 @@ import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, writeBatch, Timestamp, addDoc, orderBy, updateDoc, increment, getDoc } from 'firebase/firestore';
 import { useUser } from '@/components/useUser';
 import { useRouter } from 'next/navigation';
-import { Search, ScanBarcode, ChevronDown, Repeat, AlertTriangle, X, Percent, Tag } from 'lucide-react';
+import { Search, ScanBarcode, ChevronDown, Repeat, AlertTriangle, X, Percent, Tag, Gift } from 'lucide-react';
 import BarcodeScanner from '@/components/BarcodeScanner';
 
 // Interfaces
@@ -55,6 +55,18 @@ interface SaleData {
   vendorId: string;
   timestamp: Timestamp;
   purchaseRefId: string;
+  pointsRedeemed?: number;
+  pointsEarned?: number;
+}
+
+interface LoyaltyConfig {
+  pointsPerRupee: number;
+  minimumPurchase: number;
+  bonusPoints: number;
+  bonusThreshold: number;
+  welcomePoints: number;
+  pointsRedemptionValue: number;
+  isEnabled: boolean;
 }
 
 // Main Component
@@ -94,6 +106,19 @@ export default function POSPage() {
   // Add state for accordion
   const [showTaxDiscount, setShowTaxDiscount] = useState(false);
 
+  // Loyalty Points State
+  const [loyaltyConfig, setLoyaltyConfig] = useState<LoyaltyConfig>({
+    pointsPerRupee: 0.1,
+    minimumPurchase: 100,
+    bonusPoints: 50,
+    bonusThreshold: 1000,
+    welcomePoints: 100,
+    pointsRedemptionValue: 1.0,
+    isEnabled: true
+  });
+  const [pointsToRedeem, setPointsToRedeem] = useState(0);
+  const [showLoyaltySection, setShowLoyaltySection] = useState(false);
+
   const hasLowStockItems = useMemo(() => {
     return stock.some(item => item.quantity > 0 && item.quantity < (item.lowStockThreshold || 5));
   }, [stock]);
@@ -124,10 +149,23 @@ export default function POSPage() {
         setCategories(uniqueCategories);
       };
       fetchStock();
+
+      // Load loyalty configuration
+      const loadLoyaltyConfig = async () => {
+        try {
+          const configDoc = await getDoc(doc(db, 'loyalty_config', user.uid));
+          if (configDoc.exists()) {
+            setLoyaltyConfig(configDoc.data() as LoyaltyConfig);
+          }
+        } catch (error) {
+          console.error('Error loading loyalty config:', error);
+        }
+      };
+      loadLoyaltyConfig();
     }
   }, [user]);
     
-  const { subtotal, tax, total, discount } = useMemo(() => {
+  const { subtotal, tax, total, discount, pointsEarned, pointsValue } = useMemo(() => {
     const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
     const taxRate = taxPercentage / 100;
     const tax = subtotal * taxRate;
@@ -141,10 +179,25 @@ export default function POSPage() {
         discountAmount = discountValue;
       }
     }
+
+    // Calculate points redemption value
+    const pointsValue = pointsToRedeem * loyaltyConfig.pointsRedemptionValue;
     
-    const total = subtotal + tax - discountAmount;
-    return { subtotal, tax, total, discount: discountAmount };
-  }, [cart, taxPercentage, discountType, discountValue]);
+    // Calculate total after points redemption
+    const totalAfterPoints = subtotal + tax - discountAmount - pointsValue;
+    
+    // Calculate points that would be earned from this purchase
+    let pointsEarned = 0;
+    if (loyaltyConfig.isEnabled && totalAfterPoints >= loyaltyConfig.minimumPurchase && customerInfoId) {
+      pointsEarned = Math.floor(totalAfterPoints * loyaltyConfig.pointsPerRupee);
+      if (totalAfterPoints >= loyaltyConfig.bonusThreshold) {
+        pointsEarned += loyaltyConfig.bonusPoints;
+      }
+    }
+    
+    const total = Math.max(0, totalAfterPoints);
+    return { subtotal, tax, total, discount: discountAmount, pointsEarned, pointsValue };
+  }, [cart, taxPercentage, discountType, discountValue, pointsToRedeem, loyaltyConfig, customerInfoId]);
 
   const initiateCheckout = () => {
     if (cart.length === 0) {
@@ -160,6 +213,7 @@ export default function POSPage() {
     setCustomerName('Guest');
     setCustomerInfoId(null);
     setCustomerPoints(null);
+    setPointsToRedeem(0);
 
     // 1. Look for the customer in the main customer directory
     const customerQuery = query(
@@ -181,7 +235,7 @@ export default function POSPage() {
       const pointsQuery = query(
         collection(db, 'points'), 
         where('customerId', '==', customerId),
-        where('vendorId', '==', user.uid) // Added vendorId to comply with security rules
+        where('vendorId', '==', user.uid)
       );
       const pointsSnap = await getDocs(pointsQuery);
       const totalPoints = pointsSnap.docs.reduce((sum, doc) => sum + doc.data().pointsEarned, 0);
@@ -209,42 +263,26 @@ export default function POSPage() {
   };
 
   const completeSale = async (andPrint: boolean) => {
-    if (!user || cart.length === 0 || processing) return;
-
+    if (cart.length === 0 || !user || processing) return;
+    
     setProcessing(true);
-
+    const saleTimestamp = Timestamp.now();
+    
     try {
-      // Debug: Check user authentication and vendor status
-      console.log('🔍 Debug: User authentication check...');
-      console.log('🔍 Debug: User UID:', user.uid);
-      console.log('🔍 Debug: User email:', user.email);
-      
-      // Check if user exists in vendor_accounts collection
-      const vendorAccountRef = doc(db, 'vendor_accounts', user.uid);
-      const vendorAccountSnap = await getDoc(vendorAccountRef);
-      console.log('🔍 Debug: Vendor account exists:', vendorAccountSnap.exists());
-      if (vendorAccountSnap.exists()) {
-        console.log('🔍 Debug: Vendor account data:', vendorAccountSnap.data());
-      }
-
       const batch = writeBatch(db);
-      const saleTimestamp = Timestamp.now();
-
-      console.log('🔍 Debug: Starting sale completion...');
-      console.log('🔍 Debug: Cart items:', cart.length);
-
+      
       // 1. Update stock quantities
-      console.log('🔍 Debug: Updating stock quantities...');
-      cart.forEach(item => {
-        const stockRef = doc(db, 'vendor_stocks', item.id);
-        const newQuantity = item.originalQuantity - item.quantity;
-        console.log(`🔍 Debug: Updating stock ${item.id} from ${item.originalQuantity} to ${newQuantity}`);
-        batch.update(stockRef, { quantity: newQuantity });
-      });
+      for (const cartItem of cart) {
+        const stockItem = stock.find(s => s.id === cartItem.id);
+        if (stockItem) {
+          const newQuantity = stockItem.quantity - cartItem.quantity;
+          const stockRef = doc(db, 'vendor_stocks', cartItem.id);
+          batch.update(stockRef, { quantity: newQuantity });
+        }
+      }
 
       // 2. Create sale data object
       const saleData = {
-        // Explicitly map cart items to ensure no 'undefined' values are sent to Firestore.
         cart: cart.map(({ id, name, quantity, price, purchasePrice }) => {
           const saleItem: any = { id, name, quantity, price };
           if (purchasePrice !== undefined) {
@@ -262,6 +300,8 @@ export default function POSPage() {
         vendorId: user.uid,
         timestamp: saleTimestamp,
         purchaseRefId: `#M${String(saleTimestamp.seconds).slice(-6)}`,
+        pointsRedeemed: pointsToRedeem,
+        pointsEarned: pointsEarned
       };
       
       console.log('🔍 Debug: Sale data to be saved:', saleData);
@@ -283,20 +323,35 @@ export default function POSPage() {
       await batch.commit();
       console.log('🔍 Debug: Batch committed successfully!');
       
-      // 6. Add a record to the new 'points' collection if customer is registered
+      // 6. Handle loyalty points
       if (customerInfoId) {
-        console.log('🔍 Debug: Adding points record...');
-        const pointsFromSale = Math.floor(total / 200);
-        if (pointsFromSale > 0) {
+        console.log('🔍 Debug: Handling loyalty points...');
+        
+        // Add points earned from this purchase
+        if (pointsEarned > 0) {
           await addDoc(collection(db, 'points'), {
             vendorId: user.uid,
             customerId: customerInfoId,
-            pointsEarned: pointsFromSale,
+            pointsEarned: pointsEarned,
             purchaseTotal: total,
             purchaseRefId: saleData.purchaseRefId,
             timestamp: saleTimestamp
           });
-          console.log('🔍 Debug: Points record added successfully!');
+          console.log('🔍 Debug: Points earned record added successfully!');
+        }
+
+        // Deduct redeemed points
+        if (pointsToRedeem > 0) {
+          await addDoc(collection(db, 'points'), {
+            vendorId: user.uid,
+            customerId: customerInfoId,
+            pointsEarned: -pointsToRedeem, // Negative to indicate redemption
+            purchaseTotal: total,
+            purchaseRefId: saleData.purchaseRefId,
+            timestamp: saleTimestamp,
+            redemptionValue: pointsValue
+          });
+          console.log('🔍 Debug: Points redemption record added successfully!');
         }
       }
 
@@ -313,6 +368,7 @@ export default function POSPage() {
       setCustomerInfoId(null);
       setCustomerPoints(null);
       setAmountPaid(null);
+      setPointsToRedeem(0);
       setPaymentModalOpen(false);
       setProcessing(false);
       alert("Sale completed successfully!");
@@ -768,6 +824,44 @@ export default function POSPage() {
                     )}
                   </div>
                   
+                  {/* Loyalty Points Section */}
+                  {loyaltyConfig.isEnabled && (
+                    <div className="mb-3">
+                      <button
+                        type="button"
+                        className="w-full flex items-center justify-between px-3 py-2 text-xs bg-white border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-all duration-200"
+                        onClick={() => setShowLoyaltySection((v) => !v)}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Gift className="w-3.5 h-3.5 text-primary-600" /> 
+                          Loyalty Points: {customerPoints || 0}
+                          <span className="mx-1.5">|</span>
+                          Redeem: {pointsToRedeem}
+                        </span>
+                        <ChevronDown className={`w-3.5 h-3.5 ml-2 transition-transform duration-200 ${showLoyaltySection ? 'rotate-180' : ''}`} />
+                      </button>
+                      {showLoyaltySection && (
+                        <div className="mt-3 p-3 bg-white border border-neutral-200 rounded-lg space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Gift className="w-3.5 h-3.5 text-primary-600" />
+                            <input
+                              type="number"
+                              value={pointsToRedeem}
+                              onChange={(e) => setPointsToRedeem(parseFloat(e.target.value) || 0)}
+                              className="flex-1 px-2 py-1 border border-neutral-300 rounded-md focus:ring-2 focus:ring-primary-200 focus:border-primary-400 text-xs"
+                              min="0"
+                              step="1"
+                            />
+                            <span className="text-xs text-neutral-600">Points</span>
+                          </div>
+                          <div className="text-sm text-neutral-600">
+                            Redeeming {pointsToRedeem} points will reduce your total by {formatCurrency(pointsToRedeem * loyaltyConfig.pointsRedemptionValue)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
                   {/* Summary */}
                   <div className="space-y-2 text-xs mb-4">
                     <div className="flex justify-between items-center">
@@ -782,6 +876,16 @@ export default function POSPage() {
                       <div className="flex justify-between items-center text-green-600">
                         <span>Discount ({discountType === 'percentage' ? `${discountValue}%` : 'Fixed'})</span>
                         <span className="font-semibold">-{formatCurrency(discount)}</span>
+                      </div>
+                    )}
+                    {pointsEarned > 0 && (
+                      <div className="flex justify-between items-center text-green-600">
+                        <span>Points Earned: {pointsEarned}</span>
+                      </div>
+                    )}
+                    {pointsValue > 0 && (
+                      <div className="flex justify-between items-center text-red-600">
+                        <span>Points Redeemed: -{formatCurrency(pointsValue)}</span>
                       </div>
                     )}
                   </div>
@@ -976,6 +1080,18 @@ export default function POSPage() {
                   <span className="lato-regular">-{formatCurrency(discount)}</span>
                 </div>
               )}
+              {pointsEarned > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Points Earned</span>
+                  <span className="lato-regular">{pointsEarned}</span>
+                </div>
+              )}
+              {pointsValue > 0 && (
+                <div className="flex justify-between text-red-600">
+                  <span>Points Redeemed</span>
+                  <span className="lato-regular">-{formatCurrency(pointsValue)}</span>
+                </div>
+              )}
             </div>
             
             <div className="flex justify-between items-center">
@@ -1004,53 +1120,157 @@ export default function POSPage() {
       
       {/* Payment Modal */}
       {isPaymentModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-              <div className="bg-white rounded-lg shadow-2xl p-6 w-full max-w-sm mx-4">
-                  <div className="flex justify-between items-center mb-4">
-                      <h2 className="text-xl font-bold text-neutral-800">Payment Received</h2>
-                      <button onClick={() => setPaymentModalOpen(false)}><X className="w-5 h-5 text-neutral-500"/></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg shadow-2xl p-6 w-full max-w-md mx-4">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-neutral-800">Complete Sale</h2>
+              <button onClick={() => setPaymentModalOpen(false)}><X className="w-5 h-5 text-neutral-500"/></button>
+            </div>
+            
+            <div className="space-y-4">
+              {/* Customer Info */}
+              <div className="bg-neutral-50 p-3 rounded-lg">
+                <div className="text-sm space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600">Customer</span>
+                    <span className="font-medium">{customerName}</span>
                   </div>
-                  <div className="mb-2 text-lg font-bold lato-regular text-neutral-800">Total: {formatCurrency(total)}</div>
-                  <div>
-                      <label htmlFor="amount-paid" className="text-sm font-medium text-neutral-600">Amount Paid</label>
-                      <input 
-                          id="amount-paid"
-                          type="number" 
-                          value={amountPaid ?? ''}
-                          onChange={e => setAmountPaid(e.target.value === '' ? null : parseFloat(e.target.value))}
-                          onFocus={e => e.target.select()}
-                          className="mt-1 w-full p-2 border border-neutral-300 rounded-lg text-lg"
-                          autoFocus
-                      />
-                  </div>
-                  <div className="mt-4 text-lg font-medium">
-                      Change to Return: <span className="font-bold text-green-600">{formatCurrency(changeToReturn)}</span>
-                  </div>
-
-                  <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3">
-                     <button
-                        onClick={() => setPaymentModalOpen(false)}
-                        className="w-full px-4 py-2 text-sm font-semibold text-neutral-700 bg-neutral-100 border border-neutral-200 rounded-lg shadow-sm hover:bg-neutral-200"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleFinalizeSale(false)}
-                        disabled={processing}
-                        className="w-full px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg shadow-sm hover:bg-primary-700 disabled:bg-neutral-400"
-                      >
-                        {processing ? 'Saving...' : 'Save'}
-                      </button>
-                      <button
-                        onClick={() => handleFinalizeSale(true)}
-                        disabled={processing}
-                        className="w-full px-4 py-2 text-sm font-semibold text-white bg-primary-700 rounded-lg shadow-sm hover:bg-primary-800 disabled:bg-neutral-400 col-span-1 md:col-auto"
-                      >
-                        {processing ? 'Saving...' : 'Save & Print'}
-                      </button>
-                  </div>
+                  {customerPhone && (
+                    <div className="flex justify-between">
+                      <span className="text-neutral-600">Phone</span>
+                      <span className="font-medium">{customerPhone}</span>
+                    </div>
+                  )}
+                  {customerPoints !== null && (
+                    <div className="flex justify-between">
+                      <span className="text-neutral-600">Available Points</span>
+                      <span className="font-medium text-primary-600">{customerPoints}</span>
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {/* Loyalty Points Redemption */}
+              {loyaltyConfig.isEnabled && customerPoints && customerPoints > 0 && (
+                <div className="border border-neutral-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Gift className="w-4 h-4 text-primary-600" />
+                    <span className="text-sm font-medium text-neutral-700">Redeem Loyalty Points</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={pointsToRedeem}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value) || 0;
+                        const maxPoints = Math.min(value, customerPoints);
+                        setPointsToRedeem(maxPoints);
+                      }}
+                      className="flex-1 px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      min="0"
+                      max={customerPoints}
+                      step="1"
+                      placeholder="0"
+                    />
+                    <span className="text-sm text-neutral-500">points</span>
+                  </div>
+                  {pointsToRedeem > 0 && (
+                    <div className="text-xs text-neutral-600 mt-1">
+                      Redeeming {pointsToRedeem} points = {formatCurrency(pointsToRedeem * loyaltyConfig.pointsRedemptionValue)} off
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Payment Method */}
+              <div>
+                <label className="text-sm font-medium text-neutral-700 mb-2">Payment Method</label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="Cash">Cash</option>
+                  <option value="Card">Card</option>
+                  <option value="Digital">Digital Payment</option>
+                </select>
+              </div>
+
+              {/* Amount Paid */}
+              <div>
+                <label className="text-sm font-medium text-neutral-700 mb-2">Amount Paid</label>
+                <input
+                  type="number"
+                  value={amountPaid || ''}
+                  onChange={(e) => setAmountPaid(parseFloat(e.target.value) || null)}
+                  className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Enter amount"
+                  min={total}
+                  step="0.01"
+                />
+              </div>
+
+              {/* Summary */}
+              <div className="bg-neutral-50 p-3 rounded-lg">
+                <div className="text-sm space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600">Subtotal</span>
+                    <span className="lato-regular">{formatCurrency(subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600">Tax ({taxPercentage}%)</span>
+                    <span className="lato-regular">{formatCurrency(tax)}</span>
+                  </div>
+                  {discount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Discount</span>
+                      <span className="lato-regular">-{formatCurrency(discount)}</span>
+                    </div>
+                  )}
+                  {pointsEarned > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Points Earned</span>
+                      <span className="lato-regular">{pointsEarned}</span>
+                    </div>
+                  )}
+                  {pointsValue > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span>Points Redeemed</span>
+                      <span className="lato-regular">-{formatCurrency(pointsValue)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between pt-1 border-t border-neutral-200">
+                    <span className="font-bold">Total</span>
+                    <span className="font-bold">{formatCurrency(total)}</span>
+                  </div>
+                  {amountPaid && amountPaid > total && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Change</span>
+                      <span className="font-medium">{formatCurrency(amountPaid - total)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPaymentModalOpen(false)}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-neutral-700 bg-neutral-100 rounded-lg hover:bg-neutral-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleFinalizeSale(false)}
+                  disabled={processing}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {processing ? 'Processing...' : 'Complete Sale'}
+                </button>
+              </div>
+            </div>
           </div>
+        </div>
       )}
 
       {/* Customer Modal */}
@@ -1179,6 +1399,86 @@ export default function POSPage() {
                 </div>
               </div>
               
+              {/* Loyalty Points */}
+              <div className="mb-3">
+                <label className="text-sm font-medium text-neutral-700">Loyalty Points</label>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="number"
+                    value={loyaltyConfig.pointsPerRupee}
+                    onChange={(e) => setLoyaltyConfig(prev => ({ ...prev, pointsPerRupee: parseFloat(e.target.value) || 0 }))}
+                    className="flex-1 px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    min="0"
+                    step="0.01"
+                  />
+                  <span className="text-sm text-neutral-500">Points per Rupee</span>
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="number"
+                    value={loyaltyConfig.minimumPurchase}
+                    onChange={(e) => setLoyaltyConfig(prev => ({ ...prev, minimumPurchase: parseFloat(e.target.value) || 0 }))}
+                    className="flex-1 px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    min="0"
+                    step="1"
+                  />
+                  <span className="text-sm text-neutral-500">Minimum Purchase for Bonus</span>
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="number"
+                    value={loyaltyConfig.bonusPoints}
+                    onChange={(e) => setLoyaltyConfig(prev => ({ ...prev, bonusPoints: parseFloat(e.target.value) || 0 }))}
+                    className="flex-1 px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    min="0"
+                    step="1"
+                  />
+                  <span className="text-sm text-neutral-500">Bonus Points for High Spending</span>
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="number"
+                    value={loyaltyConfig.bonusThreshold}
+                    onChange={(e) => setLoyaltyConfig(prev => ({ ...prev, bonusThreshold: parseFloat(e.target.value) || 0 }))}
+                    className="flex-1 px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    min="0"
+                    step="1"
+                  />
+                  <span className="text-sm text-neutral-500">Bonus Threshold (Points)</span>
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="number"
+                    value={loyaltyConfig.welcomePoints}
+                    onChange={(e) => setLoyaltyConfig(prev => ({ ...prev, welcomePoints: parseFloat(e.target.value) || 0 }))}
+                    className="flex-1 px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    min="0"
+                    step="1"
+                  />
+                  <span className="text-sm text-neutral-500">Welcome Points</span>
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="number"
+                    value={loyaltyConfig.pointsRedemptionValue}
+                    onChange={(e) => setLoyaltyConfig(prev => ({ ...prev, pointsRedemptionValue: parseFloat(e.target.value) || 0 }))}
+                    className="flex-1 px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    min="0"
+                    step="0.01"
+                  />
+                  <span className="text-sm text-neutral-500">Points Redemption Value (LKR)</span>
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="checkbox"
+                    checked={loyaltyConfig.isEnabled}
+                    onChange={(e) => setLoyaltyConfig(prev => ({ ...prev, isEnabled: e.target.checked }))}
+                    className="w-4 h-4 text-primary-600 focus:ring-primary-500 border-neutral-300 rounded"
+                  />
+                  <label className="text-sm text-neutral-700">Enable Loyalty Program</label>
+                </div>
+              </div>
+              
               {/* Summary */}
               <div className="bg-neutral-50 p-3 rounded-lg">
                 <div className="text-sm space-y-1">
@@ -1194,6 +1494,18 @@ export default function POSPage() {
                     <div className="flex justify-between text-green-600">
                       <span>Discount</span>
                       <span className="lato-regular">-{formatCurrency(discount)}</span>
+                    </div>
+                  )}
+                  {pointsEarned > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Points Earned</span>
+                      <span className="lato-regular">{pointsEarned}</span>
+                    </div>
+                  )}
+                  {pointsValue > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span>Points Redeemed</span>
+                      <span className="lato-regular">-{formatCurrency(pointsValue)}</span>
                     </div>
                   )}
                   <div className="flex justify-between pt-1 border-t border-neutral-200">
