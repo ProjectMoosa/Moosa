@@ -868,7 +868,7 @@ export default function VendorsPage() {
                   {/* Account Management Actions */}
                   <div className="bg-white rounded-lg p-6 shadow-sm">
                     <div className="font-semibold text-base mb-4">Account Management</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <button 
                         className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors border ${
                           viewVendor.status === 'Active' 
@@ -998,7 +998,7 @@ export default function VendorsPage() {
                   {/* Account Management Actions */}
                   <div className="bg-white rounded-lg p-6 shadow-sm">
                     <div className="font-semibold text-base mb-4">Account Management</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <button 
                         className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors border ${
                           viewVendor.status === 'Active' 
