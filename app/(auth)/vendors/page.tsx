@@ -664,7 +664,7 @@ export default function VendorsPage() {
                   <td className="px-4 py-3">{v.contact || v.phone || "-"}</td>
                   <td className="px-4 py-3">{v.email || "-"}</td>
                   <td className="px-4 py-3">{v.subscriptionPlan || v.subscription?.plan || "-"}</td>
-                  <td className="px-4 py-3">{
+                  <td className="px-4 py-3 lato-regular">{
                     vendorsPayments[v.id] !== undefined
                       ? `LKR ${vendorsPayments[v.id].toLocaleString(undefined, { minimumFractionDigits: 2 })}`
                       : (typeof v.monthlyFee === "number" ? `LKR ${v.monthlyFee}` : v.subscription?.monthlyFee || "LKR 0")
@@ -861,7 +861,7 @@ export default function VendorsPage() {
                     </div>
                     <div>
                       <div className="text-xs text-neutral-500 mb-1">Total Paid</div>
-                      <div className="font-bold text-lg">LKR {getTotalPaid().toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                      <div className="font-bold text-lg lato-regular">LKR {getTotalPaid().toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                     </div>
                   </div>
                   
@@ -946,7 +946,7 @@ export default function VendorsPage() {
                         )).map((p) => (
                           <tr key={p.id} className="border-t border-neutral-100">
                             <td className="px-4 py-3">{formatDate(p.date)}</td>
-                            <td className="px-4 py-3">LKR {Number(p.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                            <td className="px-4 py-3 lato-regular">LKR {Number(p.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                             <td className="px-4 py-3">{p.method || '-'}</td>
                             <td className="px-4 py-3">{p.period || '-'}</td>
                             <td className="px-4 py-3">
@@ -1059,7 +1059,7 @@ export default function VendorsPage() {
                       </div>
                       <div>
                         <div className="text-sm text-neutral-500 mb-1">Monthly Fee</div>
-                        <div className="font-bold text-lg">LKR {viewVendor.subscription?.monthlyFee?.toLocaleString() || '0'}</div>
+                        <div className="font-bold text-lg lato-regular">LKR {viewVendor.subscription?.monthlyFee?.toLocaleString() || '0'}</div>
                       </div>
                       <div>
                         <div className="text-sm text-neutral-500 mb-1">Duration</div>
