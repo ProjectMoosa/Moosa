@@ -534,6 +534,30 @@ export default function VendorsPage() {
     setShowDebugVendors(true);
   }
 
+  const defaultBannerMessage = "Your account payment is overdue. Please pay to avoid deactivation.";
+
+  const sendWarningBanner = async (vendor: any) => {
+    try {
+      await updateDoc(doc(db, "vendor_accounts", vendor.id), {
+        warningBanner: defaultBannerMessage,
+      });
+      await fetchVendors();
+    } catch (error) {
+      console.error("Error sending warning banner:", error);
+    }
+  };
+
+  const removeWarningBanner = async (vendor: any) => {
+    try {
+      await updateDoc(doc(db, "vendor_accounts", vendor.id), {
+        warningBanner: "",
+      });
+      await fetchVendors();
+    } catch (error) {
+      console.error("Error removing warning banner:", error);
+    }
+  };
+
   if (loading || role === 'vendor') return null;
 
   return (
@@ -858,6 +882,24 @@ export default function VendorsPage() {
                       </button>
                       
                       <button 
+                        className={`px-4 py-3 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-200 hover:bg-yellow-100 text-sm font-medium transition-colors flex flex-col items-start ${viewVendor.warningBanner ? 'ring-2 ring-yellow-400' : ''}`}
+                        onClick={() => sendWarningBanner(viewVendor)}
+                        disabled={!!viewVendor.warningBanner}
+                      >
+                        <div className="font-semibold">Send Warning Banner</div>
+                        <div className="text-xs opacity-75">Show payment warning on vendor dashboard</div>
+                      </button>
+                      {viewVendor.warningBanner && (
+                        <button 
+                          className="px-4 py-3 rounded-lg bg-white text-yellow-700 border border-yellow-200 hover:bg-yellow-50 text-sm font-medium transition-colors flex flex-col items-start"
+                          onClick={() => removeWarningBanner(viewVendor)}
+                        >
+                          <div className="font-semibold">Remove Banner</div>
+                          <div className="text-xs opacity-75">Hide warning from vendor dashboard</div>
+                        </button>
+                      )}
+                      
+                      <button 
                         className="px-4 py-3 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 text-sm font-medium transition-colors" 
                         onClick={() => sendPaymentReminder(viewVendor)}
                       >
@@ -969,6 +1011,24 @@ export default function VendorsPage() {
                         <div className="font-semibold">{viewVendor.status === 'Active' ? 'Disable Account' : 'Enable Account'}</div>
                         <div className="text-xs opacity-75">Toggle account status</div>
                       </button>
+                      
+                      <button 
+                        className={`px-4 py-3 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-200 hover:bg-yellow-100 text-sm font-medium transition-colors flex flex-col items-start ${viewVendor.warningBanner ? 'ring-2 ring-yellow-400' : ''}`}
+                        onClick={() => sendWarningBanner(viewVendor)}
+                        disabled={!!viewVendor.warningBanner}
+                      >
+                        <div className="font-semibold">Send Warning Banner</div>
+                        <div className="text-xs opacity-75">Show payment warning on vendor dashboard</div>
+                      </button>
+                      {viewVendor.warningBanner && (
+                        <button 
+                          className="px-4 py-3 rounded-lg bg-white text-yellow-700 border border-yellow-200 hover:bg-yellow-50 text-sm font-medium transition-colors flex flex-col items-start"
+                          onClick={() => removeWarningBanner(viewVendor)}
+                        >
+                          <div className="font-semibold">Remove Banner</div>
+                          <div className="text-xs opacity-75">Hide warning from vendor dashboard</div>
+                        </button>
+                      )}
                       
                       <button 
                         className="px-4 py-3 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 text-sm font-medium transition-colors" 
