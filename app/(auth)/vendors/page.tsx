@@ -479,30 +479,8 @@ export default function VendorsPage() {
     }
   }
 
-  function getNextPaymentDate() {
-    if (!payments.length || !viewVendor?.subscription?.duration) return null;
-    const last = payments[0];
-    let lastDate = last.date;
-    if (lastDate && lastDate.seconds) lastDate = new Date(lastDate.seconds * 1000);
-    else lastDate = new Date(lastDate);
-    let next = new Date(lastDate);
-    const duration = viewVendor.subscription.duration?.toLowerCase();
-    if (duration.startsWith("year")) next.setFullYear(next.getFullYear() + 1);
-    else next.setMonth(next.getMonth() + 1);
-    return next.toLocaleDateString();
-  }
-
   function getTotalPaid() {
     return payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-  }
-
-  function getPaymentStatus() {
-    if (!payments.length) return { label: "Payment Required", color: "bg-yellow-100 text-yellow-700" };
-    const nextDue = getNextPaymentDate();
-    const today = new Date();
-    const dueDate = nextDue ? new Date(nextDue) : null;
-    if (dueDate && dueDate < today) return { label: "Overdue", color: "bg-red-100 text-red-700" };
-    return { label: "Current", color: "bg-green-100 text-green-700" };
   }
 
   // When opening Add Payment modal, auto-fill amount and period
@@ -556,6 +534,75 @@ export default function VendorsPage() {
     } catch (error) {
       console.error("Error removing warning banner:", error);
     }
+  };
+
+  const togglePaymentReminders = async (vendor: any) => {
+    try {
+      await updateDoc(doc(db, "vendor_accounts", vendor.id), {
+        paymentRemindersEnabled: !vendor.paymentRemindersEnabled,
+      });
+      await fetchVendors();
+    } catch (error) {
+      console.error("Error toggling payment reminders:", error);
+    }
+  };
+
+  // Automatic payment date calculation functions
+  const calculateNextPaymentDate = (lastPaymentDate: any, subscriptionDuration: string) => {
+    if (!lastPaymentDate) return null;
+    
+    let date = new Date(lastPaymentDate.seconds * 1000);
+    const duration = subscriptionDuration?.toLowerCase();
+    
+    if (duration?.startsWith("year")) {
+      date.setFullYear(date.getFullYear() + 1);
+    } else {
+      date.setMonth(date.getMonth() + 1);
+    }
+    
+    return date;
+  };
+
+  const calculatePaymentDueDate = (subscriptionStartDate: any, subscriptionDuration: string) => {
+    if (!subscriptionStartDate) return null;
+    
+    let date = new Date(subscriptionStartDate.seconds * 1000);
+    const duration = subscriptionDuration?.toLowerCase();
+    
+    if (duration?.startsWith("year")) {
+      date.setFullYear(date.getFullYear() + 1);
+    } else {
+      date.setMonth(date.getMonth() + 1);
+    }
+    
+    return date;
+  };
+
+  const getPaymentStatus = () => {
+    if (!viewVendor || !payments.length) return { label: 'No Payments', color: 'bg-red-100 text-red-800' };
+    
+    const lastPayment = payments[0];
+    const lastPaymentDate = new Date(lastPayment.date.seconds * 1000);
+    const daysSincePayment = Math.floor((Date.now() - lastPaymentDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Calculate next payment date based on subscription duration
+    const nextPaymentDate = calculateNextPaymentDate(lastPayment.date, viewVendor.subscription?.duration);
+    const daysUntilNextPayment = nextPaymentDate ? Math.floor((nextPaymentDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
+    
+    if (daysSincePayment > 30) {
+      return { label: 'Overdue', color: 'bg-red-100 text-red-800' };
+    } else if (daysUntilNextPayment <= 7) {
+      return { label: 'Due Soon', color: 'bg-yellow-100 text-yellow-800' };
+    } else {
+      return { label: 'Current', color: 'bg-green-100 text-green-800' };
+    }
+  };
+
+  const getNextPaymentDate = () => {
+    if (!payments.length || !viewVendor?.subscription?.duration) return null;
+    const last = payments[0];
+    const nextDate = calculateNextPaymentDate(last.date, viewVendor.subscription.duration);
+    return nextDate ? nextDate.toLocaleDateString() : null;
   };
 
   if (loading || role === 'vendor') return null;
@@ -868,43 +915,72 @@ export default function VendorsPage() {
                   {/* Account Management Actions */}
                   <div className="bg-white rounded-lg p-6 shadow-sm">
                     <div className="font-semibold text-base mb-4">Account Management</div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <button 
-                        className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors border ${
-                          viewVendor.status === 'Active' 
-                            ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' 
-                            : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
-                        }`} 
-                        onClick={() => toggleAccountStatus(viewVendor, viewVendor.status === 'Active' ? 'Inactive' : 'Active')}
-                      >
-                        <div className="font-semibold">{viewVendor.status === 'Active' ? 'Disable Account' : 'Enable Account'}</div>
-                        <div className="text-xs opacity-75">Toggle account status</div>
-                      </button>
-                      
-                      <button 
-                        className={`px-4 py-3 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-200 hover:bg-yellow-100 text-sm font-medium transition-colors ${viewVendor.warningBanner ? 'ring-2 ring-yellow-400' : ''}`}
-                        onClick={() => sendWarningBanner(viewVendor)}
-                        disabled={!!viewVendor.warningBanner}
-                      >
-                        Send Warning Banner
-                      </button>
-                      {viewVendor.warningBanner && (
+                    <div className="space-y-4">
+                      {/* Account Status Toggle */}
+                      <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                        <div className="flex-1">
+                          <div className="font-medium text-neutral-900">Account Status</div>
+                          <div className="text-sm text-neutral-600">
+                            {viewVendor.status === 'Active' ? 'Account is currently active' : 'Account is currently inactive'}
+                          </div>
+                        </div>
                         <button 
-                          className="px-4 py-3 rounded-lg bg-white text-yellow-700 border border-yellow-200 hover:bg-yellow-50 text-sm font-medium transition-colors flex flex-col items-start"
-                          onClick={() => removeWarningBanner(viewVendor)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                            viewVendor.status === 'Active' 
+                              ? 'bg-red-600' 
+                              : 'bg-green-600'
+                          }`}
+                          onClick={() => toggleAccountStatus(viewVendor, viewVendor.status === 'Active' ? 'Inactive' : 'Active')}
                         >
-                          <div className="font-semibold">Remove Banner</div>
-                          <div className="text-xs opacity-75">Hide warning from vendor dashboard</div>
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              viewVendor.status === 'Active' ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
                         </button>
-                      )}
-                      
-                      <button 
-                        className="px-4 py-3 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 text-sm font-medium transition-colors" 
-                        onClick={() => sendPaymentReminder(viewVendor)}
-                      >
-                        <div className="font-semibold">Payment Reminder</div>
-                        <div className="text-xs opacity-75">Send payment notification</div>
-                      </button>
+                      </div>
+
+                      {/* Payment Reminder Toggle */}
+                      <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                        <div className="flex-1">
+                          <div className="font-medium text-neutral-900">Payment Reminders</div>
+                          <div className="text-sm text-neutral-600">Automatically send payment notifications</div>
+                        </div>
+                        <button 
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                            viewVendor.paymentRemindersEnabled ? 'bg-purple-600' : 'bg-neutral-300'
+                          }`}
+                          onClick={() => togglePaymentReminders(viewVendor)}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              viewVendor.paymentRemindersEnabled ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Warning Banner Toggle */}
+                      <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                        <div className="flex-1">
+                          <div className="font-medium text-neutral-900">Warning Banner</div>
+                          <div className="text-sm text-neutral-600">
+                            {viewVendor.warningBanner ? 'Banner is currently active' : 'No warning banner displayed'}
+                          </div>
+                        </div>
+                        <button 
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                            viewVendor.warningBanner ? 'bg-yellow-600' : 'bg-neutral-300'
+                          }`}
+                          onClick={() => viewVendor.warningBanner ? removeWarningBanner(viewVendor) : sendWarningBanner(viewVendor)}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              viewVendor.warningBanner ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
                     </div>
                   </div>
                   
@@ -998,43 +1074,72 @@ export default function VendorsPage() {
                   {/* Account Management Actions */}
                   <div className="bg-white rounded-lg p-6 shadow-sm">
                     <div className="font-semibold text-base mb-4">Account Management</div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <button 
-                        className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors border ${
-                          viewVendor.status === 'Active' 
-                            ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' 
-                            : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
-                        }`} 
-                        onClick={() => toggleAccountStatus(viewVendor, viewVendor.status === 'Active' ? 'Inactive' : 'Active')}
-                      >
-                        <div className="font-semibold">{viewVendor.status === 'Active' ? 'Disable Account' : 'Enable Account'}</div>
-                        <div className="text-xs opacity-75">Toggle account status</div>
-                      </button>
-                      
-                      <button 
-                        className={`px-4 py-3 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-200 hover:bg-yellow-100 text-sm font-medium transition-colors ${viewVendor.warningBanner ? 'ring-2 ring-yellow-400' : ''}`}
-                        onClick={() => sendWarningBanner(viewVendor)}
-                        disabled={!!viewVendor.warningBanner}
-                      >
-                        Send Warning Banner
-                      </button>
-                      {viewVendor.warningBanner && (
+                    <div className="space-y-4">
+                      {/* Account Status Toggle */}
+                      <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                        <div className="flex-1">
+                          <div className="font-medium text-neutral-900">Account Status</div>
+                          <div className="text-sm text-neutral-600">
+                            {viewVendor.status === 'Active' ? 'Account is currently active' : 'Account is currently inactive'}
+                          </div>
+                        </div>
                         <button 
-                          className="px-4 py-3 rounded-lg bg-white text-yellow-700 border border-yellow-200 hover:bg-yellow-50 text-sm font-medium transition-colors flex flex-col items-start"
-                          onClick={() => removeWarningBanner(viewVendor)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                            viewVendor.status === 'Active' 
+                              ? 'bg-red-600' 
+                              : 'bg-green-600'
+                          }`}
+                          onClick={() => toggleAccountStatus(viewVendor, viewVendor.status === 'Active' ? 'Inactive' : 'Active')}
                         >
-                          <div className="font-semibold">Remove Banner</div>
-                          <div className="text-xs opacity-75">Hide warning from vendor dashboard</div>
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              viewVendor.status === 'Active' ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
                         </button>
-                      )}
-                      
-                      <button 
-                        className="px-4 py-3 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 text-sm font-medium transition-colors" 
-                        onClick={() => sendPaymentReminder(viewVendor)}
-                      >
-                        <div className="font-semibold">Payment Reminder</div>
-                        <div className="text-xs opacity-75">Send payment notification</div>
-                      </button>
+                      </div>
+
+                      {/* Payment Reminder Toggle */}
+                      <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                        <div className="flex-1">
+                          <div className="font-medium text-neutral-900">Payment Reminders</div>
+                          <div className="text-sm text-neutral-600">Automatically send payment notifications</div>
+                        </div>
+                        <button 
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                            viewVendor.paymentRemindersEnabled ? 'bg-purple-600' : 'bg-neutral-300'
+                          }`}
+                          onClick={() => togglePaymentReminders(viewVendor)}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              viewVendor.paymentRemindersEnabled ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Warning Banner Toggle */}
+                      <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                        <div className="flex-1">
+                          <div className="font-medium text-neutral-900">Warning Banner</div>
+                          <div className="text-sm text-neutral-600">
+                            {viewVendor.warningBanner ? 'Banner is currently active' : 'No warning banner displayed'}
+                          </div>
+                        </div>
+                        <button 
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                            viewVendor.warningBanner ? 'bg-yellow-600' : 'bg-neutral-300'
+                          }`}
+                          onClick={() => viewVendor.warningBanner ? removeWarningBanner(viewVendor) : sendWarningBanner(viewVendor)}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              viewVendor.warningBanner ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
                     </div>
                   </div>
                   
