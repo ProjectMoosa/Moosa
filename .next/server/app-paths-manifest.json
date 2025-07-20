@@ -1,7 +1,7 @@
 {
   "/(auth)/vendors/page": "app/(auth)/vendors/page.js",
-  "/(auth)/stocks/page": "app/(auth)/stocks/page.js",
+  "/(auth)/pos/page": "app/(auth)/pos/page.js",
   "/(auth)/billing/page": "app/(auth)/billing/page.js",
-  "/(auth)/products/page": "app/(auth)/products/page.js",
-  "/(auth)/pos/page": "app/(auth)/pos/page.js"
+  "/(auth)/stocks/page": "app/(auth)/stocks/page.js",
+  "/(auth)/products/page": "app/(auth)/products/page.js"
 }

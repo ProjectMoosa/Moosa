@@ -924,20 +924,15 @@ export default function VendorsPage() {
                             {viewVendor.status === 'Active' ? 'Account is currently active' : 'Account is currently inactive'}
                           </div>
                         </div>
-                        <button 
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
-                            viewVendor.status === 'Active' 
-                              ? 'bg-red-600' 
-                              : 'bg-green-600'
-                          }`}
-                          onClick={() => toggleAccountStatus(viewVendor, viewVendor.status === 'Active' ? 'Inactive' : 'Active')}
-                        >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                              viewVendor.status === 'Active' ? 'translate-x-6' : 'translate-x-1'
-                            }`}
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="sr-only peer"
+                            checked={viewVendor.status === 'Active'}
+                            onChange={() => toggleAccountStatus(viewVendor, viewVendor.status === 'Active' ? 'Inactive' : 'Active')}
                           />
-                        </button>
+                          <div className="relative w-11 h-6 bg-neutral-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                        </label>
                       </div>
 
                       {/* Payment Reminder Toggle */}
@@ -946,18 +941,15 @@ export default function VendorsPage() {
                           <div className="font-medium text-neutral-900">Payment Reminders</div>
                           <div className="text-sm text-neutral-600">Automatically send payment notifications</div>
                         </div>
-                        <button 
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
-                            viewVendor.paymentRemindersEnabled ? 'bg-purple-600' : 'bg-neutral-300'
-                          }`}
-                          onClick={() => togglePaymentReminders(viewVendor)}
-                        >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                              viewVendor.paymentRemindersEnabled ? 'translate-x-6' : 'translate-x-1'
-                            }`}
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="sr-only peer"
+                            checked={viewVendor.paymentRemindersEnabled || false}
+                            onChange={() => togglePaymentReminders(viewVendor)}
                           />
-                        </button>
+                          <div className="relative w-11 h-6 bg-neutral-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                        </label>
                       </div>
 
                       {/* Warning Banner Toggle */}
@@ -968,18 +960,15 @@ export default function VendorsPage() {
                             {viewVendor.warningBanner ? 'Banner is currently active' : 'No warning banner displayed'}
                           </div>
                         </div>
-                        <button 
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
-                            viewVendor.warningBanner ? 'bg-yellow-600' : 'bg-neutral-300'
-                          }`}
-                          onClick={() => viewVendor.warningBanner ? removeWarningBanner(viewVendor) : sendWarningBanner(viewVendor)}
-                        >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                              viewVendor.warningBanner ? 'translate-x-6' : 'translate-x-1'
-                            }`}
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="sr-only peer"
+                            checked={!!viewVendor.warningBanner}
+                            onChange={() => viewVendor.warningBanner ? removeWarningBanner(viewVendor) : sendWarningBanner(viewVendor)}
                           />
-                        </button>
+                          <div className="relative w-11 h-6 bg-neutral-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-600"></div>
+                        </label>
                       </div>
                     </div>
                   </div>
@@ -1083,20 +1072,15 @@ export default function VendorsPage() {
                             {viewVendor.status === 'Active' ? 'Account is currently active' : 'Account is currently inactive'}
                           </div>
                         </div>
-                        <button 
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
-                            viewVendor.status === 'Active' 
-                              ? 'bg-red-600' 
-                              : 'bg-green-600'
-                          }`}
-                          onClick={() => toggleAccountStatus(viewVendor, viewVendor.status === 'Active' ? 'Inactive' : 'Active')}
-                        >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                              viewVendor.status === 'Active' ? 'translate-x-6' : 'translate-x-1'
-                            }`}
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="sr-only peer"
+                            checked={viewVendor.status === 'Active'}
+                            onChange={() => toggleAccountStatus(viewVendor, viewVendor.status === 'Active' ? 'Inactive' : 'Active')}
                           />
-                        </button>
+                          <div className="relative w-11 h-6 bg-neutral-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                        </label>
                       </div>
 
                       {/* Payment Reminder Toggle */}
@@ -1105,18 +1089,15 @@ export default function VendorsPage() {
                           <div className="font-medium text-neutral-900">Payment Reminders</div>
                           <div className="text-sm text-neutral-600">Automatically send payment notifications</div>
                         </div>
-                        <button 
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
-                            viewVendor.paymentRemindersEnabled ? 'bg-purple-600' : 'bg-neutral-300'
-                          }`}
-                          onClick={() => togglePaymentReminders(viewVendor)}
-                        >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                              viewVendor.paymentRemindersEnabled ? 'translate-x-6' : 'translate-x-1'
-                            }`}
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="sr-only peer"
+                            checked={viewVendor.paymentRemindersEnabled || false}
+                            onChange={() => togglePaymentReminders(viewVendor)}
                           />
-                        </button>
+                          <div className="relative w-11 h-6 bg-neutral-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                        </label>
                       </div>
 
                       {/* Warning Banner Toggle */}
@@ -1127,18 +1108,15 @@ export default function VendorsPage() {
                             {viewVendor.warningBanner ? 'Banner is currently active' : 'No warning banner displayed'}
                           </div>
                         </div>
-                        <button 
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
-                            viewVendor.warningBanner ? 'bg-yellow-600' : 'bg-neutral-300'
-                          }`}
-                          onClick={() => viewVendor.warningBanner ? removeWarningBanner(viewVendor) : sendWarningBanner(viewVendor)}
-                        >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                              viewVendor.warningBanner ? 'translate-x-6' : 'translate-x-1'
-                            }`}
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="sr-only peer"
+                            checked={!!viewVendor.warningBanner}
+                            onChange={() => viewVendor.warningBanner ? removeWarningBanner(viewVendor) : sendWarningBanner(viewVendor)}
                           />
-                        </button>
+                          <div className="relative w-11 h-6 bg-neutral-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-600"></div>
+                        </label>
                       </div>
                     </div>
                   </div>
