@@ -522,6 +522,13 @@ export default function POSPage() {
   }, [stock, searchTerm, selectedCategory]);
   
   const formatCurrency = (amount: number) => `Rs ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const formatDateDDMMMYYYY = (date: Date) => {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = date.toLocaleDateString('en-US', { month: 'short' });
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
   
   const changeToReturn = useMemo(() => {
       if(amountPaid === null || amountPaid < total) return 0;
@@ -1320,7 +1327,7 @@ export default function POSPage() {
                                 {purchaseHistory.map((sale, index) => (
                                     <div key={index} className="text-sm bg-neutral-50 p-2 rounded-md">
                                         <div className="flex justify-between">
-                                            <span>{new Date(sale.timestamp.seconds * 1000).toLocaleDateString()}</span>
+                                            <span>{formatDateDDMMMYYYY(new Date(sale.timestamp.seconds * 1000))}</span>
                                             <span className="font-medium lato-regular">{formatCurrency(sale.total)}</span>
                                         </div>
                                     </div>

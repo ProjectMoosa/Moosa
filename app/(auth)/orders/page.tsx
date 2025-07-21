@@ -420,6 +420,13 @@ export default function OrdersPage() {
     setPreselectedProduct(undefined);
   };
 
+  const formatDateDDMMMYYYY = (date: Date) => {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = date.toLocaleDateString('en-US', { month: 'short' });
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
   return (
     <Container>
       <div className="flex justify-between items-center mb-6">
@@ -497,7 +504,7 @@ export default function OrdersPage() {
                           </td>
                           <td className="flex justify-between items-center px-4 py-3 md:table-cell md:px-6 md:py-4" data-label="Date">
                               <span>Date</span>
-                              <span>{new Date(order.date.seconds * 1000).toLocaleDateString()}</span>
+                              <span>{formatDateDDMMMYYYY(new Date(order.date.seconds * 1000))}</span>
                           </td>
                           <td className="flex justify-between items-center px-4 py-3 md:table-cell md:px-6 md:py-4" data-label="Status">
                               <span>Status</span>

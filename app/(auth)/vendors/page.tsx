@@ -9,10 +9,17 @@ import { useRouter } from 'next/navigation';
 import Container from "@/components/Container";
 
 function formatDate(ts: any) {
-  if (!ts) return "-";
-  if (typeof ts === "string") return ts;
-  if (ts.seconds) return new Date(ts.seconds * 1000).toLocaleDateString();
-  return "-";
+  if (!ts) return '-';
+  const date = ts.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
+  return date.toLocaleDateString();
+}
+
+function formatDateDDMMMYYYY(date: Date) {
+  if (!date) return '-';
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = date.toLocaleDateString('en-US', { month: 'short' });
+  const year = date.getFullYear();
+  return `${day}-${month}-${year}`;
 }
 
 function formatPrice(price: number, duration: string) {
@@ -55,6 +62,7 @@ export default function VendorsPage() {
   const [showDebugVendors, setShowDebugVendors] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [vendorsPayments, setVendorsPayments] = useState<{ [vendorId: string]: number }>({});
+  const [allPayments, setAllPayments] = useState<any[]>([]);
   const [showBannerSettings, setShowBannerSettings] = useState(false);
 
   // New state for payment-based account management
@@ -180,7 +188,9 @@ export default function VendorsPage() {
         read: false,
       });
 
-      await fetchVendors();
+      // Update local state immediately
+      setViewVendor((prev: any) => prev ? { ...prev, status: newStatus } : null);
+      setVendors((prev: any[]) => prev.map(v => v.id === vendor.id ? { ...v, status: newStatus } : v));
     } catch (error) {
       console.error('Error updating account status:', error);
     }
@@ -225,7 +235,12 @@ export default function VendorsPage() {
     if (accounts.length > 0) {
       const fetchAllPayments = async () => {
         const paymentsSnap = await getDocs(collection(db, "payment_records"));
-        const payments = paymentsSnap.docs.map(doc => doc.data());
+        const payments = paymentsSnap.docs.map(doc => doc.data()).sort((a, b) => {
+          // Sort by date, most recent first
+          const dateA = a.date?.seconds ? a.date.seconds : 0;
+          const dateB = b.date?.seconds ? b.date.seconds : 0;
+          return dateB - dateA;
+        });
         const paymentsByVendor: { [vendorId: string]: number } = {};
         payments.forEach((p: any) => {
           if (p.vendorCode) {
@@ -233,6 +248,7 @@ export default function VendorsPage() {
           }
         });
         setVendorsPayments(paymentsByVendor);
+        setAllPayments(payments); // Store all payments for next payment date calculation
       };
       fetchAllPayments();
     }
@@ -472,6 +488,8 @@ export default function VendorsPage() {
       setNewPayment({ amount: "", date: "", notes: "", method: "Bank Transfer", period: "", status: "paid" });
       setShowAddPaymentModal(false);
       fetchPayments(viewVendor.vendorCode);
+      // Also refresh all payments to update the main table
+      await fetchVendors();
     } catch (err: any) {
       setPaymentsError("Failed to add payment");
     } finally {
@@ -519,7 +537,9 @@ export default function VendorsPage() {
       await updateDoc(doc(db, "vendor_accounts", vendor.id), {
         warningBanner: defaultBannerMessage,
       });
-      await fetchVendors();
+      // Update local state immediately
+      setViewVendor((prev: any) => prev ? { ...prev, warningBanner: defaultBannerMessage } : null);
+      setVendors((prev: any[]) => prev.map(v => v.id === vendor.id ? { ...v, warningBanner: defaultBannerMessage } : v));
     } catch (error) {
       console.error("Error sending warning banner:", error);
     }
@@ -530,7 +550,9 @@ export default function VendorsPage() {
       await updateDoc(doc(db, "vendor_accounts", vendor.id), {
         warningBanner: "",
       });
-      await fetchVendors();
+      // Update local state immediately
+      setViewVendor((prev: any) => prev ? { ...prev, warningBanner: "" } : null);
+      setVendors((prev: any[]) => prev.map(v => v.id === vendor.id ? { ...v, warningBanner: "" } : v));
     } catch (error) {
       console.error("Error removing warning banner:", error);
     }
@@ -538,10 +560,13 @@ export default function VendorsPage() {
 
   const togglePaymentReminders = async (vendor: any) => {
     try {
+      const newValue = !vendor.paymentRemindersEnabled;
       await updateDoc(doc(db, "vendor_accounts", vendor.id), {
-        paymentRemindersEnabled: !vendor.paymentRemindersEnabled,
+        paymentRemindersEnabled: newValue,
       });
-      await fetchVendors();
+      // Update local state immediately
+      setViewVendor((prev: any) => prev ? { ...prev, paymentRemindersEnabled: newValue } : null);
+      setVendors((prev: any[]) => prev.map(v => v.id === vendor.id ? { ...v, paymentRemindersEnabled: newValue } : v));
     } catch (error) {
       console.error("Error toggling payment reminders:", error);
     }
@@ -602,7 +627,60 @@ export default function VendorsPage() {
     if (!payments.length || !viewVendor?.subscription?.duration) return null;
     const last = payments[0];
     const nextDate = calculateNextPaymentDate(last.date, viewVendor.subscription.duration);
-    return nextDate ? nextDate.toLocaleDateString() : null;
+    return nextDate ? formatDateDDMMMYYYY(nextDate) : null;
+  };
+
+  // Get next payment date for a specific vendor
+  const getVendorNextPaymentDate = (vendor: any) => {
+    // Get payments for this specific vendor from allPayments
+    const vendorPayments = allPayments.filter(p => p.vendorCode === vendor.vendorCode);
+    
+    if (vendorPayments.length > 0 && vendor.subscription?.duration) {
+      // Use the same logic as the modal - calculate based on last payment
+      const lastPayment = vendorPayments[0]; // Most recent payment
+      const nextDate = calculateNextPaymentDate(lastPayment.date, vendor.subscription.duration);
+      return nextDate ? formatDateDDMMMYYYY(nextDate) : '-';
+    } else if (vendor.subscription?.startDate) {
+      // Fallback to subscription start date if no payments
+      const nextDate = calculatePaymentDueDate(vendor.subscription.startDate, vendor.subscription.duration);
+      return nextDate ? formatDateDDMMMYYYY(nextDate) : '-';
+    }
+    return '-';
+  };
+
+  // Get comprehensive status for vendor based on all toggle states
+  const getVendorStatus = (vendor: any) => {
+    const statuses = [];
+    
+    // Account Status
+    if (vendor.status === 'Active') {
+      statuses.push('Active');
+    } else if (vendor.status === 'Inactive') {
+      statuses.push('Inactive');
+    }
+    
+    // Warning Banner Status
+    if (vendor.warningBanner) {
+      statuses.push('Warning');
+    }
+    
+    // Payment Reminders Status
+    if (vendor.paymentRemindersEnabled) {
+      statuses.push('Reminders');
+    }
+    
+    // Return the most important status first
+    if (statuses.includes('Inactive')) {
+      return { label: 'Inactive', color: 'bg-red-100 text-red-700' };
+    } else if (statuses.includes('Warning')) {
+      return { label: 'Warning', color: 'bg-yellow-100 text-yellow-700' };
+    } else if (statuses.includes('Active')) {
+      return { label: 'Active', color: 'bg-green-100 text-green-700' };
+    } else if (statuses.includes('Reminders')) {
+      return { label: 'Reminders', color: 'bg-blue-100 text-blue-700' };
+    } else {
+      return { label: 'Unknown', color: 'bg-gray-100 text-gray-700' };
+    }
   };
 
   if (loading || role === 'vendor') return null;
@@ -661,14 +739,10 @@ export default function VendorsPage() {
               <div className="text-sm text-neutral-500 mb-1">Contact: {v.contact || v.phone || '-'}</div>
               <div className="text-sm text-neutral-500 mb-1">Email: {v.email || '-'}</div>
               <div className="text-sm text-neutral-500 mb-1">Subscription: {v.subscriptionPlan || v.subscription?.plan || '-'}</div>
-              <div className="text-sm text-neutral-500 mb-1">Monthly Fee: {
-                vendorsPayments[v.id] !== undefined
-                  ? `Rs ${vendorsPayments[v.id].toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-                  : (typeof v.monthlyFee === "number" ? `Rs ${v.monthlyFee}` : v.subscription?.monthlyFee || "Rs 0.00")
-              }</div>
+              <div className="text-sm text-neutral-500 mb-1">Next Payment: {getVendorNextPaymentDate(v)}</div>
               <div className="text-sm mb-2">
-                <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${v.status === "Active" || v.subscription?.status === "Active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                  {v.status || v.subscription?.status || "-"}
+                <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${getVendorStatus(v).color}`}>
+                  {getVendorStatus(v).label}
                 </span>
               </div>
               <div className="flex gap-2 mt-2 flex-wrap">
@@ -689,7 +763,7 @@ export default function VendorsPage() {
               <th className="px-4 py-3 text-left">Contact</th>
               <th className="px-4 py-3 text-left">Email</th>
               <th className="px-4 py-3 text-left">Subscription</th>
-              <th className="px-4 py-3 text-left">Monthly Fee</th>
+              <th className="px-4 py-3 text-left">Next Payment Date</th>
               <th className="px-4 py-3 text-left">Status</th>
               <th className="px-4 py-3 text-left">Actions</th>
             </tr>
@@ -712,13 +786,11 @@ export default function VendorsPage() {
                   <td className="px-4 py-3">{v.email || "-"}</td>
                   <td className="px-4 py-3">{v.subscriptionPlan || v.subscription?.plan || "-"}</td>
                   <td className="px-4 py-3">
-                    {vendorsPayments[v.id] !== undefined
-                      ? `Rs ${vendorsPayments[v.id].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                      : (typeof v.monthlyFee === "number" ? `Rs ${v.monthlyFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : v.subscription?.monthlyFee || "Rs 0.00")
-                  }</td>
+                    {getVendorNextPaymentDate(v) || '-'}
+                  </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${v.status === "Active" || v.subscription?.status === "Active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                      {v.status || v.subscription?.status || "-"}
+                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${getVendorStatus(v).color}`}>
+                      {getVendorStatus(v).label}
                     </span>
                   </td>
                   <td className="px-4 py-3 flex gap-2">
@@ -900,7 +972,7 @@ export default function VendorsPage() {
                     </div>
                     <div>
                       <div className="text-xs text-neutral-500 mb-1">Last Payment</div>
-                      <div className="font-bold text-lg">{payments[0] ? formatDate(payments[0].date) : '-'}</div>
+                      <div className="font-bold text-lg">{payments[0] ? formatDateDDMMMYYYY(new Date(payments[0].date.seconds * 1000)) : '-'}</div>
                     </div>
                     <div>
                       <div className="text-xs text-neutral-500 mb-1">Next Due</div>
@@ -911,151 +983,73 @@ export default function VendorsPage() {
                       <div className="font-bold text-lg lato-regular">Rs {getTotalPaid().toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                     </div>
                   </div>
-                  
-                  {/* Account Management Actions */}
+
+                  {/* Record Payment Section */}
                   <div className="bg-white rounded-lg p-6 shadow-sm">
-                    <div className="font-semibold text-base mb-4">Account Management</div>
-                    <div className="space-y-4">
-                      {/* Account Status Toggle */}
-                      <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
-                        <div className="flex-1">
-                          <div className="font-medium text-neutral-900">Account Status</div>
-                          <div className="text-sm text-neutral-600">
-                            {viewVendor.status === 'Active' ? 'Account is currently active' : 'Account is currently inactive'}
-                          </div>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            className="sr-only peer"
-                            checked={viewVendor.status === 'Active'}
-                            onChange={() => toggleAccountStatus(viewVendor, viewVendor.status === 'Active' ? 'Inactive' : 'Active')}
-                          />
-                          <div className="relative w-11 h-6 bg-neutral-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
-                        </label>
-                      </div>
-
-                      {/* Payment Reminder Toggle */}
-                      <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
-                        <div className="flex-1">
-                          <div className="font-medium text-neutral-900">Payment Reminders</div>
-                          <div className="text-sm text-neutral-600">Automatically send payment notifications</div>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            className="sr-only peer"
-                            checked={viewVendor.paymentRemindersEnabled || false}
-                            onChange={() => togglePaymentReminders(viewVendor)}
-                          />
-                          <div className="relative w-11 h-6 bg-neutral-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
-                        </label>
-                      </div>
-
-                      {/* Warning Banner Toggle */}
-                      <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
-                        <div className="flex-1">
-                          <div className="font-medium text-neutral-900">Warning Banner</div>
-                          <div className="text-sm text-neutral-600">
-                            {viewVendor.warningBanner ? 'Banner is currently active' : 'No warning banner displayed'}
-                          </div>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            className="sr-only peer"
-                            checked={!!viewVendor.warningBanner}
-                            onChange={() => viewVendor.warningBanner ? removeWarningBanner(viewVendor) : sendWarningBanner(viewVendor)}
-                          />
-                          <div className="relative w-11 h-6 bg-neutral-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-600"></div>
-                        </label>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="font-semibold text-base">Record Payment</div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={openAddPaymentModal}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors"
+                        >
+                          Add Payment
+                        </button>
+                        <button
+                          onClick={() => {/* Export functionality */}}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
+                        >
+                          Export CSV
+                        </button>
                       </div>
                     </div>
-                  </div>
-                  
-                  {/* Record Payment & Actions */}
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-2">
-                    <div className="font-semibold text-base">Record Payment</div>
-                    <div className="flex gap-2">
-                      <button className="bg-primary-700 hover:bg-primary-800 text-white font-medium px-4 py-2 rounded-md text-sm" onClick={openAddPaymentModal}>Add Payment</button>
-                      <button className="bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium px-4 py-2 rounded-md text-sm" onClick={() => { /* TODO: Export CSV */ }}>Export CSV</button>
+                    
+                    {/* Search Payments */}
+                    <div className="mb-4">
+                      <input
+                        type="text"
+                        placeholder="Search payments..."
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      />
                     </div>
-                  </div>
-                  {/* Search Payments */}
-                  <div className="mb-2">
-                    <input type="text" placeholder="Search payments..." className="border border-neutral-200 rounded-md px-3 py-2 w-full md:w-1/3" value={searchPayment} onChange={e => setSearchPayment(e.target.value)} />
-                  </div>
-                  {/* Payments Table */}
-                  {paymentsError && (
-                    <div className="bg-red-100 text-red-700 rounded p-2 mb-2 text-sm font-medium">{paymentsError}</div>
-                  )}
-                  <div className="bg-white rounded-lg p-0 shadow-sm overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                      <thead>
-                        <tr className="text-neutral-500 text-xs uppercase">
-                          <th className="px-4 py-3 text-left">Date</th>
-                          <th className="px-4 py-3 text-left">Amount</th>
-                          <th className="px-4 py-3 text-left">Method</th>
-                          <th className="px-4 py-3 text-left">Period</th>
-                          <th className="px-4 py-3 text-left">Status</th>
-                          <th className="px-4 py-3 text-left">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(payments.filter(p =>
-                          !searchPayment ||
-                          formatDate(p.date).toLowerCase().includes(searchPayment.toLowerCase()) ||
-                          String(p.amount).includes(searchPayment) ||
-                          (p.method || "").toLowerCase().includes(searchPayment.toLowerCase()) ||
-                          (p.period || "").toLowerCase().includes(searchPayment.toLowerCase())
-                        )).map((p) => (
-                          <tr key={p.id} className="border-t border-neutral-100">
-                            <td className="px-4 py-3">{formatDate(p.date)}</td>
-                            <td className="px-4 py-3 lato-regular">Rs {Number(p.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                            <td className="px-4 py-3">{p.method || '-'}</td>
-                            <td className="px-4 py-3">{p.period || '-'}</td>
-                            <td className="px-4 py-3">
-                              <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${p.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{p.status || '-'}</span>
-                            </td>
-                            <td className="px-4 py-3 flex gap-2">
-                              <button className="text-blue-700 hover:underline text-xs">Edit</button>
-                              <button className="text-red-700 hover:underline text-xs">Delete</button>
-                            </td>
+
+                    {/* Payments Table */}
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-neutral-200">
+                        <thead className="bg-neutral-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Date</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Amount</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Method</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Period</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Status</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Actions</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {/* Add Payment Modal */}
-                  {showAddPaymentModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
-                      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative flex flex-col max-h-[90vh]">
-                        <div className="bg-primary-700 rounded-t-2xl px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-                          <div className="text-lg font-bold text-white">Add Payment</div>
-                          <button className="text-white text-2xl" onClick={() => setShowAddPaymentModal(false)} aria-label="Close">&times;</button>
-                        </div>
-                        <form className="flex-1 overflow-y-auto p-6 space-y-6" onSubmit={handleAddPayment}>
-                          <input type="number" required min={0} placeholder="Amount (Rs)" className="border border-neutral-200 rounded-md px-3 py-2 w-full" value={newPayment.amount} onChange={e => setNewPayment(n => ({ ...n, amount: e.target.value }))} />
-                          <input type="date" required className="border border-neutral-200 rounded-md px-3 py-2 w-full" value={newPayment.date} onChange={e => setNewPayment(n => ({ ...n, date: e.target.value }))} />
-                          <input type="text" placeholder="Notes (optional)" className="border border-neutral-200 rounded-md px-3 py-2 w-full" value={newPayment.notes} onChange={e => setNewPayment(n => ({ ...n, notes: e.target.value }))} />
-                          <select className="border border-neutral-200 rounded-md px-3 py-2 w-full" value={newPayment.method} onChange={e => setNewPayment(n => ({ ...n, method: e.target.value }))}>
-                            <option value="Bank Transfer">Bank Transfer</option>
-                            <option value="Cash">Cash</option>
-                            <option value="Card">Card</option>
-                          </select>
-                          <input type="text" placeholder="Period (e.g. 2025-06)" className="border border-neutral-200 rounded-md px-3 py-2 w-full" value={newPayment.period} onChange={e => setNewPayment(n => ({ ...n, period: e.target.value }))} />
-                          <select className="border border-neutral-200 rounded-md px-3 py-2 w-full" value={newPayment.status} onChange={e => setNewPayment(n => ({ ...n, status: e.target.value }))}>
-                            <option value="paid">Paid</option>
-                            <option value="pending">Pending</option>
-                          </select>
-                          <div className="flex justify-end gap-2">
-                            <button type="button" className="px-4 py-2 rounded-md border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100 text-sm" onClick={() => setShowAddPaymentModal(false)} disabled={addingPayment}>Cancel</button>
-                            <button type="submit" className="px-6 py-2 rounded-md bg-primary-700 text-white hover:bg-primary-800 text-sm font-medium shadow-sm disabled:opacity-50" disabled={addingPayment}>{addingPayment ? "Saving..." : "Add Payment"}</button>
-                          </div>
-                        </form>
-                      </div>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-neutral-200">
+                          {payments.map((p) => (
+                            <tr key={p.id} className="border-t border-neutral-100">
+                              <td className="px-4 py-3">{formatDateDDMMMYYYY(new Date(p.date.seconds * 1000))}</td>
+                              <td className="px-4 py-3 lato-regular">Rs {Number(p.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                              <td className="px-4 py-3">{p.method || '-'}</td>
+                              <td className="px-4 py-3">{p.period || '-'}</td>
+                              <td className="px-4 py-3">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  {p.status || 'paid'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex gap-2">
+                                  <button className="text-blue-600 hover:text-blue-800 text-sm">Edit</button>
+                                  <button className="text-red-600 hover:text-red-800 text-sm">Delete</button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
               {activeTab === 'Notifications' && (

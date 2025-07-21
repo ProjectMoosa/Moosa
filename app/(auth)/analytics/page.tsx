@@ -91,11 +91,10 @@ function formatCurrency(amount: number) {
 }
 
 function formatDate(date: Date) {
-  return date.toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'short', 
-    day: 'numeric' 
-  });
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = date.toLocaleDateString('en-US', { month: 'short' });
+  const year = date.getFullYear();
+  return `${day}-${month}-${year}`;
 }
 
 function getGreeting() {
