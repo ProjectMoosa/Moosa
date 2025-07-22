@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, DocumentData, Timestamp, query, where, orderBy, setDoc, getDoc, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
@@ -64,6 +64,8 @@ export default function VendorsPage() {
   const [vendorsPayments, setVendorsPayments] = useState<{ [vendorId: string]: number }>({});
   const [allPayments, setAllPayments] = useState<any[]>([]);
   const [showBannerSettings, setShowBannerSettings] = useState(false);
+  const [sortBy, setSortBy] = useState<string>('');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   // New state for payment-based account management
   const [adminBanners, setAdminBanners] = useState<{
@@ -227,32 +229,92 @@ export default function VendorsPage() {
   }, []);
 
   async function fetchVendors() {
-    setVendorsLoading(true);
-    const accountsSnap = await getDocs(collection(db, "vendor_accounts"));
-    const accounts = accountsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-    setVendors(accounts);
-    setVendorsLoading(false);
-    if (accounts.length > 0) {
+    try {
+      setVendorsLoading(true);
+      const vendorsSnapshot = await getDocs(collection(db, 'vendors'));
+      const vendorsData = vendorsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setVendors(vendorsData);
+
+      // Fetch all payments for vendors
       const fetchAllPayments = async () => {
-        const paymentsSnap = await getDocs(collection(db, "payment_records"));
-        const payments = paymentsSnap.docs.map(doc => doc.data()).sort((a, b) => {
-          // Sort by date, most recent first
-          const dateA = a.date?.seconds ? a.date.seconds : 0;
-          const dateB = b.date?.seconds ? b.date.seconds : 0;
-          return dateB - dateA;
-        });
-        const paymentsByVendor: { [vendorId: string]: number } = {};
-        payments.forEach((p: any) => {
-          if (p.vendorCode) {
-            paymentsByVendor[p.vendorCode] = (paymentsByVendor[p.vendorCode] || 0) + (Number(p.amount) || 0);
-          }
-        });
-        setVendorsPayments(paymentsByVendor);
-        setAllPayments(payments); // Store all payments for next payment date calculation
+        try {
+          const paymentsSnapshot = await getDocs(collection(db, 'vendor_payments'));
+          const paymentsData = paymentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          setAllPayments(paymentsData);
+
+          // Calculate total payments for each vendor
+          const vendorPayments: { [vendorId: string]: number } = {};
+          paymentsData.forEach(payment => {
+            const vendorId = payment.vendorCode || payment.vendorId;
+            if (vendorId) {
+              vendorPayments[vendorId] = (vendorPayments[vendorId] || 0) + (payment.amount || 0);
+            }
+          });
+          setVendorsPayments(vendorPayments);
+        } catch (error) {
+          console.error('Error fetching payments:', error);
+        }
       };
-      fetchAllPayments();
+
+      await fetchAllPayments();
+    } catch (error) {
+      console.error('Error fetching vendors:', error);
+    } finally {
+      setVendorsLoading(false);
     }
   }
+
+  // Filtered and sorted vendors
+  const filteredAndSortedVendors = useMemo(() => {
+    let filtered = vendors;
+
+    // Apply sorting
+    if (sortBy) {
+      filtered = filtered.sort((a, b) => {
+        let aValue: any;
+        let bValue: any;
+
+        switch (sortBy) {
+          case 'vendorCode':
+            aValue = (a.vendorCode || '').toLowerCase();
+            bValue = (b.vendorCode || '').toLowerCase();
+            break;
+          case 'businessName':
+            aValue = (a.businessName || a.name || '').toLowerCase();
+            bValue = (b.businessName || b.name || '').toLowerCase();
+            break;
+          case 'contact':
+            aValue = (a.contact || a.phone || '').toLowerCase();
+            bValue = (b.contact || b.phone || '').toLowerCase();
+            break;
+          case 'email':
+            aValue = (a.email || '').toLowerCase();
+            bValue = (b.email || '').toLowerCase();
+            break;
+          case 'subscription':
+            aValue = (a.subscriptionPlan || a.subscription?.plan || '').toLowerCase();
+            bValue = (b.subscriptionPlan || b.subscription?.plan || '').toLowerCase();
+            break;
+          case 'nextPayment':
+            aValue = getVendorNextPaymentDate(a);
+            bValue = getVendorNextPaymentDate(b);
+            break;
+          case 'status':
+            aValue = getVendorStatus(a).label.toLowerCase();
+            bValue = getVendorStatus(b).label.toLowerCase();
+            break;
+          default:
+            return 0;
+        }
+
+        if (aValue < bValue) return sortDir === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [vendors, sortBy, sortDir]);
 
   async function fetchPlans() {
     const plansSnap = await getDocs(collection(db, "subscription_plans"));
@@ -725,14 +787,27 @@ export default function VendorsPage() {
           <option value="Basic">Basic</option>
         </select>
       </div>
+      
+      {/* Sort Status */}
+      {sortBy && (
+        <div className="flex items-center gap-2 text-sm text-neutral-600 mb-4">
+          <span>Sorted by: <strong>{sortBy === 'vendorCode' ? 'Vendor ID' : sortBy === 'businessName' ? 'Vendor Name' : sortBy === 'contact' ? 'Contact' : sortBy === 'email' ? 'Email' : sortBy === 'subscription' ? 'Subscription' : sortBy === 'nextPayment' ? 'Next Payment Date' : sortBy === 'status' ? 'Status' : sortBy}</strong> ({sortDir === 'asc' ? 'A-Z' : 'Z-A'})</span>
+          <button 
+            onClick={() => { setSortBy(''); setSortDir('asc'); }}
+            className="text-primary-700 hover:text-primary-800 underline"
+          >
+            Clear Sort
+          </button>
+        </div>
+      )}
       {/* Card layout for mobile */}
       <div className="block sm:hidden">
         {vendorsLoading ? (
           <div className="text-center py-8 text-neutral-400">Loading...</div>
-        ) : vendors.length === 0 ? (
+        ) : filteredAndSortedVendors.length === 0 ? (
           <div className="text-center py-8 text-neutral-400">No vendors found.</div>
         ) : (
-          vendors.map((v, i) => (
+          filteredAndSortedVendors.map((v, i) => (
             <div key={i} className="bg-white rounded-xl shadow p-4 mb-3 border border-neutral-100">
               <div className="font-bold text-lg mb-1">{v.businessName || v.name || '-'}</div>
               <div className="text-xs text-neutral-500 mb-1">Vendor Code: {v.vendorCode || '-'}</div>
@@ -758,13 +833,97 @@ export default function VendorsPage() {
         <table className="min-w-[700px] text-sm w-full">
           <thead>
             <tr className="text-neutral-500 text-xs uppercase">
-              <th className="px-4 py-3 text-left">Vendor ID</th>
-              <th className="px-4 py-3 text-left">Vendor Name</th>
-              <th className="px-4 py-3 text-left">Contact</th>
-              <th className="px-4 py-3 text-left">Email</th>
-              <th className="px-4 py-3 text-left">Subscription</th>
-              <th className="px-4 py-3 text-left">Next Payment Date</th>
-              <th className="px-4 py-3 text-left">Status</th>
+              <th 
+                className="px-4 py-3 text-left cursor-pointer hover:bg-neutral-50 select-none" 
+                onClick={() => {
+                  if (sortBy === 'vendorCode') {
+                    setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                  } else {
+                    setSortBy('vendorCode');
+                    setSortDir('asc');
+                  }
+                }}
+              >
+                Vendor ID {sortBy === 'vendorCode' && (sortDir === 'asc' ? '↑' : '↓')}
+              </th>
+              <th 
+                className="px-4 py-3 text-left cursor-pointer hover:bg-neutral-50 select-none" 
+                onClick={() => {
+                  if (sortBy === 'businessName') {
+                    setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                  } else {
+                    setSortBy('businessName');
+                    setSortDir('asc');
+                  }
+                }}
+              >
+                Vendor Name {sortBy === 'businessName' && (sortDir === 'asc' ? '↑' : '↓')}
+              </th>
+              <th 
+                className="px-4 py-3 text-left cursor-pointer hover:bg-neutral-50 select-none" 
+                onClick={() => {
+                  if (sortBy === 'contact') {
+                    setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                  } else {
+                    setSortBy('contact');
+                    setSortDir('asc');
+                  }
+                }}
+              >
+                Contact {sortBy === 'contact' && (sortDir === 'asc' ? '↑' : '↓')}
+              </th>
+              <th 
+                className="px-4 py-3 text-left cursor-pointer hover:bg-neutral-50 select-none" 
+                onClick={() => {
+                  if (sortBy === 'email') {
+                    setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                  } else {
+                    setSortBy('email');
+                    setSortDir('asc');
+                  }
+                }}
+              >
+                Email {sortBy === 'email' && (sortDir === 'asc' ? '↑' : '↓')}
+              </th>
+              <th 
+                className="px-4 py-3 text-left cursor-pointer hover:bg-neutral-50 select-none" 
+                onClick={() => {
+                  if (sortBy === 'subscription') {
+                    setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                  } else {
+                    setSortBy('subscription');
+                    setSortDir('asc');
+                  }
+                }}
+              >
+                Subscription {sortBy === 'subscription' && (sortDir === 'asc' ? '↑' : '↓')}
+              </th>
+              <th 
+                className="px-4 py-3 text-left cursor-pointer hover:bg-neutral-50 select-none" 
+                onClick={() => {
+                  if (sortBy === 'nextPayment') {
+                    setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                  } else {
+                    setSortBy('nextPayment');
+                    setSortDir('asc');
+                  }
+                }}
+              >
+                Next Payment Date {sortBy === 'nextPayment' && (sortDir === 'asc' ? '↑' : '↓')}
+              </th>
+              <th 
+                className="px-4 py-3 text-left cursor-pointer hover:bg-neutral-50 select-none" 
+                onClick={() => {
+                  if (sortBy === 'status') {
+                    setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                  } else {
+                    setSortBy('status');
+                    setSortDir('asc');
+                  }
+                }}
+              >
+                Status {sortBy === 'status' && (sortDir === 'asc' ? '↑' : '↓')}
+              </th>
               <th className="px-4 py-3 text-left">Actions</th>
             </tr>
           </thead>
@@ -773,12 +932,12 @@ export default function VendorsPage() {
               <tr>
                 <td colSpan={8} className="text-center py-8 text-neutral-400">Loading...</td>
               </tr>
-            ) : vendors.length === 0 ? (
+            ) : filteredAndSortedVendors.length === 0 ? (
               <tr>
                 <td colSpan={8} className="text-center py-8 text-neutral-400">No vendors found.</td>
               </tr>
             ) : (
-              vendors.map((v, i) => (
+              filteredAndSortedVendors.map((v, i) => (
                 <tr key={i} className="border-t border-neutral-100">
                   <td className="px-4 py-3 font-medium text-neutral-900">{v.vendorCode || '-'}</td>
                   <td className="px-4 py-3">{v.businessName || v.name || "-"}</td>

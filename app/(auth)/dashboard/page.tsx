@@ -11,6 +11,7 @@ import { db } from '@/lib/firebase';
 import { useUser } from '@/components/useUser';
 import VendorDashboardPage from './vendor-page';
 import Container from '@/components/Container';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function DashboardPage() {
   const { role, businessName, vendor, loading, user } = useUser();
@@ -19,6 +20,10 @@ export default function DashboardPage() {
   const [totalVendors, setTotalVendors] = useState(0);
   const [activeVendors, setActiveVendors] = useState(0);
   const [recentVendors, setRecentVendors] = useState<any[]>([]);
+  const [revenueChartData, setRevenueChartData] = useState<any[]>([]);
+  const [vendorGrowthData, setVendorGrowthData] = useState<any[]>([]);
+  const [chartsLoading, setChartsLoading] = useState(true);
+  const [timePeriod, setTimePeriod] = useState<'30days' | '7days' | '12months'>('30days');
   const router = useRouter();
 
   // Floating Add Button State
@@ -253,35 +258,138 @@ export default function DashboardPage() {
     }
   }, [user, loading, router]);
 
+  // Data fetching functions
+  const fetchTotalRevenue = async () => {
+    const paymentsSnap = await getDocs(collection(db, 'payment_records'));
+    const payments = paymentsSnap.docs.map(doc => doc.data());
+    const sum = payments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+    setTotalRevenue(sum);
+  };
+
+  const fetchTotalStock = async () => {
+    const productsSnap = await getDocs(collection(db, 'products_master'));
+    setTotalStock(productsSnap.size);
+  };
+
+  const fetchVendors = async () => {
+    const vendorsSnap = await getDocs(collection(db, 'vendor_accounts'));
+    const vendors = vendorsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setTotalVendors(vendors.length);
+    setActiveVendors(vendors.filter(v => (v as any).status === 'Active' || (v as any).subscription?.status === 'Active').length);
+  };
+
+  const fetchRecentVendors = async () => {
+    const qVendors = query(collection(db, 'vendor_accounts'), orderBy('createdAt', 'desc'), limit(5));
+    const snap = await getDocs(qVendors);
+    setRecentVendors(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+  };
+
+  const fetchRevenueTrends = async () => {
+    try {
+      const paymentsSnap = await getDocs(collection(db, 'payment_records'));
+      const payments = paymentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+      
+      let days = 30;
+      let dateFormat: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+      
+      if (timePeriod === '7days') {
+        days = 7;
+        dateFormat = { month: 'short', day: 'numeric' };
+      } else if (timePeriod === '12months') {
+        days = 365;
+        dateFormat = { month: 'short' };
+      }
+      
+      // Generate data for selected period
+      const chartData = [];
+      for (let i = days - 1; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        const dayPayments = payments.filter(p => {
+          const paymentDate = p.paymentDate?.toDate?.() || new Date(p.paymentDate);
+          return paymentDate.toISOString().split('T')[0] === dateStr;
+        });
+        
+        const dailyRevenue = dayPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+        
+        chartData.push({
+          date: date.toLocaleDateString('en-US', dateFormat),
+          revenue: dailyRevenue
+        });
+      }
+      
+      setRevenueChartData(chartData);
+    } catch (error) {
+      console.error('Error fetching revenue trends:', error);
+      setRevenueChartData([]);
+    }
+  };
+
+  const fetchVendorGrowth = async () => {
+    try {
+      const vendorsSnap = await getDocs(collection(db, 'vendor_accounts'));
+      const vendors = vendorsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+      
+      let days = 30;
+      let dateFormat: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+      
+      if (timePeriod === '7days') {
+        days = 7;
+        dateFormat = { month: 'short', day: 'numeric' };
+      } else if (timePeriod === '12months') {
+        days = 365;
+        dateFormat = { month: 'short' };
+      }
+      
+      // Generate data for selected period
+      const chartData = [];
+      for (let i = days - 1; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        const dayVendors = vendors.filter(v => {
+          const vendorDate = v.createdAt?.toDate?.() || new Date(v.createdAt);
+          return vendorDate.toISOString().split('T')[0] === dateStr;
+        });
+        
+        chartData.push({
+          date: date.toLocaleDateString('en-US', dateFormat),
+          vendors: dayVendors.length
+        });
+      }
+      
+      setVendorGrowthData(chartData);
+    } catch (error) {
+      console.error('Error fetching vendor growth:', error);
+      setVendorGrowthData([]);
+    }
+  };
+
   useEffect(() => {
     if (role !== 'admin') return; // Only fetch admin data for admins
 
-    const fetchTotalRevenue = async () => {
-      const paymentsSnap = await getDocs(collection(db, 'payment_records'));
-      const payments = paymentsSnap.docs.map(doc => doc.data());
-      const sum = payments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
-      setTotalRevenue(sum);
-    };
-    const fetchTotalStock = async () => {
-      const productsSnap = await getDocs(collection(db, 'products_master'));
-      setTotalStock(productsSnap.size);
-    };
-    const fetchVendors = async () => {
-      const vendorsSnap = await getDocs(collection(db, 'vendor_accounts'));
-      const vendors = vendorsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setTotalVendors(vendors.length);
-      setActiveVendors(vendors.filter(v => (v as any).status === 'Active' || (v as any).subscription?.status === 'Active').length);
-    };
-    const fetchRecentVendors = async () => {
-      const qVendors = query(collection(db, 'vendor_accounts'), orderBy('createdAt', 'desc'), limit(5));
-      const snap = await getDocs(qVendors);
-      setRecentVendors(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    };
-    fetchTotalRevenue();
-    fetchTotalStock();
-    fetchVendors();
-    fetchRecentVendors();
+    Promise.all([
+      fetchTotalRevenue(),
+      fetchTotalStock(),
+      fetchVendors(),
+      fetchRecentVendors(),
+      fetchRevenueTrends(),
+      fetchVendorGrowth()
+    ]).finally(() => {
+      setChartsLoading(false);
+    });
   }, [role]);
+
+  // Refetch chart data when time period changes
+  useEffect(() => {
+    if (role === 'admin') {
+      fetchRevenueTrends();
+      fetchVendorGrowth();
+    }
+  }, [timePeriod, role]);
 
   const stats = [
     { label: "Total Revenue", value: `Rs ${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, change: "+23%" },
@@ -348,18 +456,131 @@ export default function DashboardPage() {
       {/* Charts Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
           <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-4 sm:p-6 min-h-[120px] sm:min-h-[140px] flex flex-col justify-between">
-          <div className="text-sm font-semibold text-neutral-800 mb-2">Revenue Trends</div>
-          <div className="text-xs text-neutral-400 mb-2">Last 30 Days</div>
-          <div className="flex-1 flex items-center justify-center text-neutral-300">Chart visualization coming soon</div>
-          <div className="text-xs font-semibold text-green-600 mt-2">+15%</div>
-        </div>
+            <div className="flex justify-between items-center mb-2">
+              <div className="text-sm font-semibold text-neutral-800">Revenue Trends</div>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setTimePeriod('7days')}
+                  className={`px-2 py-1 text-xs rounded ${timePeriod === '7days' ? 'bg-green-100 text-green-700' : 'text-neutral-500 hover:bg-neutral-50'}`}
+                >
+                  7D
+                </button>
+                <button
+                  onClick={() => setTimePeriod('30days')}
+                  className={`px-2 py-1 text-xs rounded ${timePeriod === '30days' ? 'bg-green-100 text-green-700' : 'text-neutral-500 hover:bg-neutral-50'}`}
+                >
+                  30D
+                </button>
+                <button
+                  onClick={() => setTimePeriod('12months')}
+                  className={`px-2 py-1 text-xs rounded ${timePeriod === '12months' ? 'bg-green-100 text-green-700' : 'text-neutral-500 hover:bg-neutral-50'}`}
+                >
+                  12M
+                </button>
+              </div>
+            </div>
+            <div className="text-xs text-neutral-400 mb-2">
+              {timePeriod === '7days' ? 'Last 7 Days' : timePeriod === '30days' ? 'Last 30 Days' : 'Last 12 Months'}
+            </div>
+            <div className="flex-1">
+              {chartsLoading ? (
+                <div className="flex items-center justify-center text-neutral-300">Loading...</div>
+              ) : revenueChartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={120}>
+                  <LineChart data={revenueChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fontSize: 10 }}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis 
+                      tick={{ fontSize: 10 }}
+                      tickFormatter={(value) => `Rs ${value}`}
+                    />
+                    <Tooltip 
+                      formatter={(value: any) => [`Rs ${value}`, 'Revenue']}
+                      labelStyle={{ fontSize: 12 }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="revenue" 
+                      stroke="#10b981" 
+                      strokeWidth={2}
+                      dot={{ fill: '#10b981', strokeWidth: 2, r: 3 }}
+                      activeDot={{ r: 5, stroke: '#10b981', strokeWidth: 2, fill: '#10b981' }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center text-neutral-300">No data available</div>
+              )}
+            </div>
+            <div className="text-xs font-semibold text-green-600 mt-2">+15%</div>
+          </div>
           <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-4 sm:p-6 min-h-[120px] sm:min-h-[140px] flex flex-col justify-between">
-          <div className="text-sm font-semibold text-neutral-800 mb-2">Vendor Growth</div>
-          <div className="text-xs text-neutral-400 mb-2">Last 30 Days</div>
-          <div className="flex-1 flex items-center justify-center text-neutral-300">Chart visualization coming soon</div>
-          <div className="text-xs font-semibold text-green-600 mt-2">+5%</div>
+            <div className="flex justify-between items-center mb-2">
+              <div className="text-sm font-semibold text-neutral-800">Vendor Growth</div>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setTimePeriod('7days')}
+                  className={`px-2 py-1 text-xs rounded ${timePeriod === '7days' ? 'bg-blue-100 text-blue-700' : 'text-neutral-500 hover:bg-neutral-50'}`}
+                >
+                  7D
+                </button>
+                <button
+                  onClick={() => setTimePeriod('30days')}
+                  className={`px-2 py-1 text-xs rounded ${timePeriod === '30days' ? 'bg-blue-100 text-blue-700' : 'text-neutral-500 hover:bg-neutral-50'}`}
+                >
+                  30D
+                </button>
+                <button
+                  onClick={() => setTimePeriod('12months')}
+                  className={`px-2 py-1 text-xs rounded ${timePeriod === '12months' ? 'bg-blue-100 text-blue-700' : 'text-neutral-500 hover:bg-neutral-50'}`}
+                >
+                  12M
+                </button>
+              </div>
+            </div>
+            <div className="text-xs text-neutral-400 mb-2">
+              {timePeriod === '7days' ? 'Last 7 Days' : timePeriod === '30days' ? 'Last 30 Days' : 'Last 12 Months'}
+            </div>
+            <div className="flex-1">
+              {chartsLoading ? (
+                <div className="flex items-center justify-center text-neutral-300">Loading...</div>
+              ) : vendorGrowthData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={120}>
+                  <LineChart data={vendorGrowthData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fontSize: 10 }}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis 
+                      tick={{ fontSize: 10 }}
+                    />
+                    <Tooltip 
+                      formatter={(value: any) => [value, 'Vendors']}
+                      labelStyle={{ fontSize: 12 }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="vendors" 
+                      stroke="#3b82f6" 
+                      strokeWidth={2}
+                      dot={{ fill: '#3b82f6', strokeWidth: 2, r: 3 }}
+                      activeDot={{ r: 5, stroke: '#3b82f6', strokeWidth: 2, fill: '#3b82f6' }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center text-neutral-300">No data available</div>
+              )}
+            </div>
+            <div className="text-xs font-semibold text-green-600 mt-2">+5%</div>
+          </div>
         </div>
-      </div>
       {/* Recent Vendors Table */}
         <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-4 sm:p-6 overflow-x-auto">
           <div className="text-lg font-bold text-neutral-900 mb-3 sm:mb-4">Recent Vendors</div>

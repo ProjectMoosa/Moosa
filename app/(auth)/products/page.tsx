@@ -1,11 +1,14 @@
 "use client";
-import { useEffect, useState, Fragment, useRef } from "react";
+import { useEffect, useState, Fragment, useRef, useCallback, useMemo } from "react";
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, DocumentData, query, where, orderBy, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useUser } from '@/components/useUser';
 import { useRouter } from 'next/navigation';
 import { Search, ChevronDown, X, Plus } from "lucide-react";
 import Container from "@/components/Container";
+import { useDebounce } from "@/lib/useDebounce";
+import { useFirestoreData } from "@/lib/useFirestoreData";
+import PerformanceMonitor from "@/components/PerformanceMonitor";
 
 interface Product {
   id?: string;
@@ -33,8 +36,6 @@ const emptyProduct: Product = {
 export default function ProductsPage() {
   const { role, loading } = useUser();
   const router = useRouter();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [productsLoading, setProductsLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState<Product>(emptyProduct);
@@ -57,6 +58,9 @@ export default function ProductsPage() {
   const columnsDropdownRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");
 
+  // Debounced search for better performance
+  const debouncedSearch = useDebounce(search, 300);
+
   // Auto-complete states
   const [brandSuggestions, setBrandSuggestions] = useState<SuggestionItem[]>([]);
   const [categorySuggestions, setCategorySuggestions] = useState<SuggestionItem[]>([]);
@@ -69,6 +73,26 @@ export default function ProductsPage() {
   const brandDropdownRef = useRef<HTMLDivElement>(null);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Optimized data fetching with caching
+  const { data: productsData, loading: productsLoading, refetch: refetchProducts } = useFirestoreData({
+    collectionName: 'products_master',
+    orderByField: 'name',
+    orderDirection: 'asc',
+    cacheKey: 'products-list'
+  });
+
+  // Memoized filtered products
+  const filteredProducts = useMemo(() => {
+    if (!debouncedSearch) return productsData;
+    
+    const searchLower = debouncedSearch.toLowerCase();
+    return productsData.filter(product => 
+      product.name.toLowerCase().includes(searchLower) ||
+      product.brand.toLowerCase().includes(searchLower) ||
+      product.category.toLowerCase().includes(searchLower)
+    );
+  }, [productsData, debouncedSearch]);
+
   useEffect(() => {
     if (!loading && role === 'vendor') {
       router.replace('/dashboard');
@@ -77,9 +101,8 @@ export default function ProductsPage() {
 
   if (loading || role === 'vendor') return null;
 
-  // Fetch products and suggestions
+  // Fetch suggestions
   useEffect(() => {
-    fetchProducts();
     fetchSuggestions();
   }, []);
 
@@ -123,18 +146,9 @@ export default function ProductsPage() {
     } else {
       setIsDuplicate(false);
     }
-  }, [form.name, form.brand, modalOpen, editing, products]);
+  }, [form.name, form.brand, modalOpen, editing, productsData]);
 
-  async function fetchProducts() {
-    setProductsLoading(true);
-      const querySnapshot = await getDocs(collection(db, "products_master"));
-      const data: Product[] = querySnapshot.docs.map((doc: DocumentData) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setProducts(data);
-    setProductsLoading(false);
-  }
+
 
   async function fetchSuggestions() {
     try {
@@ -142,13 +156,12 @@ export default function ProductsPage() {
       const brands = new Map<string, number>();
       const categories = new Map<string, number>();
 
-      productsSnapshot.docs.forEach((doc) => {
-        const data = doc.data();
-        if (data.brand) {
-          brands.set(data.brand, (brands.get(data.brand) || 0) + 1);
+      productsData.forEach((product) => {
+        if (product.brand) {
+          brands.set(product.brand, (brands.get(product.brand) || 0) + 1);
         }
-        if (data.category) {
-          categories.set(data.category, (categories.get(data.category) || 0) + 1);
+        if (product.category) {
+          categories.set(product.category, (categories.get(product.category) || 0) + 1);
         }
       });
 
@@ -340,7 +353,7 @@ export default function ProductsPage() {
 
   // Check for duplicate products
   const checkForDuplicate = (product: Product) => {
-    return products.some(existing => 
+    return productsData.some((existing: any) => 
       existing.name.toLowerCase() === product.name.toLowerCase() &&
       existing.brand.toLowerCase() === product.brand.toLowerCase()
     );
@@ -357,7 +370,7 @@ export default function ProductsPage() {
       if (editing && editing.id) {
         // Edit
         await updateDoc(doc(db, "products_master", editing.id), form as any);
-        await fetchProducts();
+        await refetchProducts();
         await fetchSuggestions(); // Refresh suggestions
         closeModal(); // Close modal after editing
         setSuccessMessage("Product updated successfully!");
@@ -373,7 +386,7 @@ export default function ProductsPage() {
         
         // Add
         await addDoc(collection(db, "products_master"), form as any);
-        await fetchProducts();
+        await refetchProducts();
         await fetchSuggestions(); // Refresh suggestions
         // Keep modal open for adding more products
         resetFormForNewProduct();
@@ -413,7 +426,7 @@ export default function ProductsPage() {
     setSaving(true);
     try {
       await deleteDoc(doc(db, "products_master", id));
-      await fetchProducts();
+      await refetchProducts();
     } catch (err) {
       alert("Error deleting product");
     } finally {
@@ -431,16 +444,6 @@ export default function ProductsPage() {
     }
   }
   // Filtered and sorted products
-  const filteredProducts = products.filter((product) => {
-    const searchLower = search.toLowerCase();
-    return (
-      searchLower === "" ||
-      product.name.toLowerCase().includes(searchLower) ||
-      product.brand.toLowerCase().includes(searchLower) ||
-      product.category.toLowerCase().includes(searchLower) ||
-      product.description.toLowerCase().includes(searchLower)
-    );
-  });
   const sortedProducts = [...filteredProducts].sort((a, b) => {
     if (!sortBy) return 0;
     const aVal = a[sortBy] ?? "";
@@ -462,15 +465,16 @@ export default function ProductsPage() {
 
   return (
     <Container>
+      <PerformanceMonitor componentName="ProductsPage" />
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
         {/* Left: Heading + Search */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-1">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl sm:text-3xl font-bold text-neutral-800 whitespace-nowrap">Products / Stock</h1>
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                {products.length} products
-              </span>
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  {productsData.length} products
+                </span>
               {search && (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                   {filteredProducts.length} found

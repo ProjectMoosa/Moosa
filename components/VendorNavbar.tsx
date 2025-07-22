@@ -60,10 +60,10 @@ export default function VendorNavbar() {
     setSigningOut(true);
     try {
       await signOut(auth);
-      // Add a small delay to ensure Firebase auth state is updated
-      setTimeout(() => {
-        router.push("/");
-      }, 100);
+      // Clear any local state immediately
+      setUnreadCount(0);
+      // Navigate immediately without delay
+      router.push("/");
     } catch (error) {
       console.error('Sign out error:', error);
       // Force redirect even if signOut fails

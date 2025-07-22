@@ -155,19 +155,29 @@ export default function AnalyticsPage() {
       
       try {
         // Fetch sales data
+        const customerDetailsQuery = query(
+          collection(db, 'customer_details'),
+          where('vendorId', '==', user.uid),
+          orderBy('timestamp', 'desc')
+        );
         const salesQuery = query(
           collection(db, 'sales'),
           where('vendorId', '==', user.uid),
           orderBy('timestamp', 'desc')
         );
-        const salesSnap = await getDocs(salesQuery);
-        const salesData = salesSnap.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        } as SaleData));
+        
+        const [customerDetailsSnap, salesSnap] = await Promise.all([
+          getDocs(customerDetailsQuery),
+          getDocs(salesQuery)
+        ]);
+        
+        const allSalesData = [
+          ...customerDetailsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+          ...salesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+        ] as SaleData[];
         
         // Filter by date range
-        const filteredSales = salesData.filter(sale => {
+        const filteredSales = allSalesData.filter(sale => {
           const saleDate = sale.timestamp.toDate();
           return saleDate >= dateRange.start && saleDate <= dateRange.end;
         });
@@ -186,17 +196,45 @@ export default function AnalyticsPage() {
         } as StockItem));
         setStock(stockData);
 
-        // Fetch customer data
+        // Fetch customer data (both registered and guest customers)
         const customerQuery = query(
           collection(db, 'customer_info'),
           where('vendorId', '==', user.uid)
         );
         const customerSnap = await getDocs(customerQuery);
-        const customerData = customerSnap.docs.map(doc => ({
+        const registeredCustomers = customerSnap.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         } as CustomerData));
-        setCustomers(customerData);
+        
+        // Get unique customers from sales data (including guests)
+        const uniqueCustomersFromSales = new Set<string>();
+        const guestCustomers: CustomerData[] = [];
+        
+        allSalesData.forEach(sale => {
+          if (sale.customerPhone && sale.customerPhone !== 'N/A') {
+            uniqueCustomersFromSales.add(sale.customerPhone);
+            
+            // Check if this customer is not in registered customers
+            const isRegistered = registeredCustomers.some(cust => cust.phone === sale.customerPhone);
+            if (!isRegistered && sale.customerName && sale.customerName !== 'Guest') {
+              // Add as guest customer
+              guestCustomers.push({
+                id: `guest_${sale.customerPhone}`,
+                name: sale.customerName,
+                phone: sale.customerPhone,
+                totalSpent: sale.total || 0,
+                totalOrders: 1,
+                lastPurchase: sale.timestamp.toDate(),
+                points: 0
+              });
+            }
+          }
+        });
+        
+        // Combine registered and guest customers
+        const allCustomers = [...registeredCustomers, ...guestCustomers];
+        setCustomers(allCustomers);
 
       } catch (error) {
         console.error('Error fetching analytics data:', error);
@@ -289,7 +327,7 @@ export default function AnalyticsPage() {
       paymentMethods,
       lowStockItems,
       outOfStockItems,
-      uniqueCustomers: new Set(sales.map(sale => sale.customerPhone).filter(Boolean)).size
+      uniqueCustomers: new Set(sales.map(sale => sale.customerPhone).filter(phone => phone && phone !== 'N/A')).size
     };
   }, [sales, stock, dateRange]);
 
@@ -506,7 +544,7 @@ export default function AnalyticsPage() {
                 </h3>
                 <p className="text-xs sm:text-sm text-neutral-600">Unique Customers</p>
                 <div className="absolute bottom-full mb-2 hidden group-hover:block w-64 bg-neutral-800 text-white text-xs rounded-lg p-2 shadow-lg z-10">
-                    The number of individual customers who made a purchase in the time period.
+                    The number of individual customers (including guests) who made a purchase in the time period.
                     <div className="absolute left-1/2 -translate-x-1/2 bottom-[-4px] w-2 h-2 bg-neutral-800 rotate-45"></div>
                 </div>
               </div>
@@ -626,6 +664,45 @@ export default function AnalyticsPage() {
                     }
                   }} 
                 />
+              </div>
+            </div>
+          </div>
+
+          {/* Customer Breakdown */}
+          <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-6 shadow-sm mb-6 sm:mb-8">
+            <h3 className="text-base sm:text-lg font-semibold text-neutral-900 mb-4">Customer Overview</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="font-medium text-neutral-700 mb-3 text-sm sm:text-base">Customer Types</h4>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg">
+                    <span className="font-medium text-neutral-900 text-sm sm:text-base">Registered Customers</span>
+                    <span className="font-semibold text-neutral-900 text-sm sm:text-base">
+                      {customers.filter(c => !c.id.startsWith('guest_')).length}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg">
+                    <span className="font-medium text-neutral-900 text-sm sm:text-base">Guest Customers</span>
+                    <span className="font-semibold text-neutral-900 text-sm sm:text-base">
+                      {customers.filter(c => c.id.startsWith('guest_')).length}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h4 className="font-medium text-neutral-700 mb-3 text-sm sm:text-base">Customer Insights</h4>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg">
+                    <span className="font-medium text-neutral-900 text-sm sm:text-base">Total Unique Customers</span>
+                    <span className="font-semibold text-neutral-900 text-sm sm:text-base">{metrics.uniqueCustomers}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg">
+                    <span className="font-medium text-neutral-900 text-sm sm:text-base">Avg. Orders per Customer</span>
+                    <span className="font-semibold text-neutral-900 text-sm sm:text-base">
+                      {metrics.uniqueCustomers > 0 ? (metrics.totalOrders / metrics.uniqueCustomers).toFixed(1) : '0'}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

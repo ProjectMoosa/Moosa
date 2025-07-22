@@ -57,8 +57,8 @@ export default function VendorStocksPage() {
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
-  const [sortBy, setSortBy] = useState("");
-  const [sortDir, setSortDir] = useState("asc");
+  const [sortBy, setSortBy] = useState<string>('');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filterStatus, setFilterStatus] = useState("");
@@ -269,7 +269,7 @@ export default function VendorStocksPage() {
   }, [showSuggestions, productSuggestions]);
 
   const filteredStocks = useMemo(() => {
-    return stocks
+    let filtered = stocks
       .filter(stock => {
         // Search filter
         const searchLower = search.toLowerCase();
@@ -290,7 +290,54 @@ export default function VendorStocksPage() {
         if (filterStatus === 'in') return stock.quantity > 0 && !isLow;
         return true;
       });
-  }, [stocks, search, filterCategory, filterStatus]);
+
+    // Apply sorting
+    if (sortBy) {
+      filtered = filtered.sort((a, b) => {
+        let aValue: any;
+        let bValue: any;
+
+        switch (sortBy) {
+          case 'name':
+            aValue = a.productName.toLowerCase();
+            bValue = b.productName.toLowerCase();
+            break;
+          case 'category':
+            aValue = (a.category || '').toLowerCase();
+            bValue = (b.category || '').toLowerCase();
+            break;
+          case 'quantity':
+            aValue = a.quantity;
+            bValue = b.quantity;
+            break;
+          case 'costPrice':
+            aValue = a.costPrice;
+            bValue = b.costPrice;
+            break;
+          case 'sellingPrice':
+            aValue = a.sellingPrice;
+            bValue = b.sellingPrice;
+            break;
+          case 'profitMargin':
+            aValue = a.costPrice ? ((a.sellingPrice - a.costPrice) / a.costPrice) * 100 : 0;
+            bValue = b.costPrice ? ((b.sellingPrice - b.costPrice) / b.costPrice) * 100 : 0;
+            break;
+          case 'barcode':
+            aValue = (a.barcode || '').toLowerCase();
+            bValue = (b.barcode || '').toLowerCase();
+            break;
+          default:
+            return 0;
+        }
+
+        if (aValue < bValue) return sortDir === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [stocks, search, filterCategory, filterStatus, sortBy, sortDir]);
   
   const categories = useMemo(() => {
     const uniqueCategories = new Set(stocks.map(s => s.category).filter(Boolean));
@@ -324,28 +371,43 @@ export default function VendorStocksPage() {
       </div>
         
         {/* Filters and Search */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <input 
-            type="text" 
-            placeholder="Search by name or barcode..." 
-            value={search} 
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full px-4 py-2 border rounded-lg col-span-1 md:col-span-1"
-          />
-          <select 
-            value={filterCategory} 
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="w-full px-4 py-2 border rounded-lg col-span-1 md:col-span-1"
-          >
-            <option value="">All Categories</option>
-            {categories.map(cat => cat && <option key={cat} value={cat}>{cat}</option>)}
-          </select>
-          <div className="flex items-center gap-2 bg-neutral-100 p-1 rounded-lg col-span-1 md:col-span-1">
-            <button onClick={() => setFilterStatus("")} className={`flex-1 py-1 px-2 text-sm rounded-md ${filterStatus === "" ? 'bg-white shadow-sm' : ''}`}>All</button>
-            <button onClick={() => setFilterStatus("in")} className={`flex-1 py-1 px-2 text-sm rounded-md ${filterStatus === "in" ? 'bg-white shadow-sm' : ''}`}>In Stock</button>
-            <button onClick={() => setFilterStatus("low")} className={`flex-1 py-1 px-2 text-sm rounded-md ${filterStatus === "low" ? 'bg-white shadow-sm' : ''}`}>Low</button>
-            <button onClick={() => setFilterStatus("out")} className={`flex-1 py-1 px-2 text-sm rounded-md ${filterStatus === "out" ? 'bg-white shadow-sm' : ''}`}>Out</button>
+        <div className="space-y-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <input 
+              type="text" 
+              placeholder="Search by name or barcode..." 
+              value={search} 
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full px-4 py-2 border rounded-lg col-span-1 md:col-span-1"
+            />
+            <select 
+              value={filterCategory} 
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="w-full px-4 py-2 border rounded-lg col-span-1 md:col-span-1"
+            >
+              <option value="">All Categories</option>
+              {categories.map(cat => cat && <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+            <div className="flex items-center gap-2 bg-neutral-100 p-1 rounded-lg col-span-1 md:col-span-1">
+              <button onClick={() => setFilterStatus("")} className={`flex-1 py-1 px-2 text-sm rounded-md ${filterStatus === "" ? 'bg-white shadow-sm' : ''}`}>All</button>
+              <button onClick={() => setFilterStatus("in")} className={`flex-1 py-1 px-2 text-sm rounded-md ${filterStatus === "in" ? 'bg-white shadow-sm' : ''}`}>In Stock</button>
+              <button onClick={() => setFilterStatus("low")} className={`flex-1 py-1 px-2 text-sm rounded-md ${filterStatus === "low" ? 'bg-white shadow-sm' : ''}`}>Low</button>
+              <button onClick={() => setFilterStatus("out")} className={`flex-1 py-1 px-2 text-sm rounded-md ${filterStatus === "out" ? 'bg-white shadow-sm' : ''}`}>Out</button>
+            </div>
           </div>
+          
+          {/* Sort Status */}
+          {sortBy && (
+            <div className="flex items-center gap-2 text-sm text-neutral-600">
+              <span>Sorted by: <strong>{sortBy === 'name' ? 'Product Name' : sortBy === 'category' ? 'Category' : sortBy === 'quantity' ? 'Quantity' : sortBy === 'costPrice' ? 'Cost Price' : sortBy === 'sellingPrice' ? 'Selling Price' : sortBy === 'profitMargin' ? 'Profit Margin' : sortBy === 'barcode' ? 'Barcode' : sortBy}</strong> ({sortDir === 'asc' ? 'A-Z' : 'Z-A'})</span>
+              <button 
+                onClick={() => { setSortBy(''); setSortDir('asc'); }}
+                className="text-primary-700 hover:text-primary-800 underline"
+              >
+                Clear Sort
+              </button>
+            </div>
+          )}
         </div>
 
         {loadingStocks ? (
@@ -359,14 +421,98 @@ export default function VendorStocksPage() {
               <table className="min-w-full text-sm hidden lg:table">
                 <thead>
                   <tr className="text-neutral-500 text-xs uppercase">
-                    <th className="px-4 py-3 text-left">Product Name</th>
-                    <th className="px-4 py-3 text-left">Category</th>
-                    <th className="px-4 py-3 text-left">Quantity</th>
-                    <th className="px-4 py-3 text-left">Cost Price</th>
-                    <th className="px-4 py-3 text-left">Selling Price</th>
-                    <th className="px-4 py-3 text-left">Profit Margin</th>
+                    <th 
+                      className="px-4 py-3 text-left cursor-pointer hover:bg-neutral-50 select-none" 
+                      onClick={() => {
+                        if (sortBy === 'name') {
+                          setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortBy('name');
+                          setSortDir('asc');
+                        }
+                      }}
+                    >
+                      Product Name {sortBy === 'name' && (sortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-left cursor-pointer hover:bg-neutral-50 select-none" 
+                      onClick={() => {
+                        if (sortBy === 'category') {
+                          setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortBy('category');
+                          setSortDir('asc');
+                        }
+                      }}
+                    >
+                      Category {sortBy === 'category' && (sortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-left cursor-pointer hover:bg-neutral-50 select-none" 
+                      onClick={() => {
+                        if (sortBy === 'quantity') {
+                          setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortBy('quantity');
+                          setSortDir('asc');
+                        }
+                      }}
+                    >
+                      Quantity {sortBy === 'quantity' && (sortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-left cursor-pointer hover:bg-neutral-50 select-none" 
+                      onClick={() => {
+                        if (sortBy === 'costPrice') {
+                          setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortBy('costPrice');
+                          setSortDir('asc');
+                        }
+                      }}
+                    >
+                      Cost Price {sortBy === 'costPrice' && (sortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-left cursor-pointer hover:bg-neutral-50 select-none" 
+                      onClick={() => {
+                        if (sortBy === 'sellingPrice') {
+                          setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortBy('sellingPrice');
+                          setSortDir('asc');
+                        }
+                      }}
+                    >
+                      Selling Price {sortBy === 'sellingPrice' && (sortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-left cursor-pointer hover:bg-neutral-50 select-none" 
+                      onClick={() => {
+                        if (sortBy === 'profitMargin') {
+                          setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortBy('profitMargin');
+                          setSortDir('asc');
+                        }
+                      }}
+                    >
+                      Profit Margin {sortBy === 'profitMargin' && (sortDir === 'asc' ? '↑' : '↓')}
+                    </th>
                     <th className="px-4 py-3 text-left">Status</th>
-                    <th className="px-4 py-3 text-left">Barcode</th>
+                    <th 
+                      className="px-4 py-3 text-left cursor-pointer hover:bg-neutral-50 select-none" 
+                      onClick={() => {
+                        if (sortBy === 'barcode') {
+                          setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortBy('barcode');
+                          setSortDir('asc');
+                        }
+                      }}
+                    >
+                      Barcode {sortBy === 'barcode' && (sortDir === 'asc' ? '↑' : '↓')}
+                    </th>
                     <th className="px-4 py-3 text-left">Actions</th>
                   </tr>
                 </thead>

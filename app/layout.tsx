@@ -15,17 +15,22 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   // Show footer only on dashboard and login pages
   const shouldShowFooter = pathname === '/' || pathname === '/dashboard';
   
-  if (loading) return <div>Loading...</div>;
   return (
     <div className="min-h-screen flex flex-col">
-      {pathname !== '/' && (role === 'vendor' ? <VendorNavbar /> : <Navbar />)}
-      <main className="flex-1 flex flex-col">
-        {children}
-      </main>
-      {shouldShowFooter && (
-        <footer className="w-full flex items-center justify-center py-2 sm:py-4 text-xs text-neutral-400">
-          © 2025 <a href="https://www.heytechmate.com" target="_blank" rel="noopener noreferrer" className="text-primary-700 hover:underline font-medium mx-1">HeyTechMate</a>. All rights reserved.
-        </footer>
+      {loading ? (
+        <div>Loading...</div>
+      ) : (
+        <>
+          {pathname !== '/' && (role === 'vendor' ? <VendorNavbar /> : <Navbar />)}
+          <main className="flex-1 flex flex-col">
+            {children}
+          </main>
+          {shouldShowFooter && (
+            <footer className="w-full flex items-center justify-center py-2 sm:py-4 text-xs text-neutral-400">
+              © 2025 <a href="https://www.heytechmate.com" target="_blank" rel="noopener noreferrer" className="text-primary-700 hover:underline font-medium mx-1">HeyTechMate</a>. All rights reserved.
+            </footer>
+          )}
+        </>
       )}
     </div>
   );

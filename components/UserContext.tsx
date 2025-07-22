@@ -30,6 +30,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      // Reset all state immediately when auth state changes
       setUser(firebaseUser);
       setVendor(null);
       setBusinessName(null);
@@ -60,11 +61,21 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           setLoading(false); // Stop loading after async operation is complete
         }
       } else {
-        // No user is logged in
+        // No user is logged in - ensure clean state
         setLoading(false); // Stop loading
       }
     });
-    return () => unsubscribe();
+    
+    // Cleanup function to ensure proper cleanup
+    return () => {
+      unsubscribe();
+      // Reset state on cleanup
+      setUser(null);
+      setVendor(null);
+      setBusinessName(null);
+      setRole(null);
+      setLoading(true);
+    };
   }, []);
 
   return (

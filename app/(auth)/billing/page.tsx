@@ -1,7 +1,7 @@
 "use client";
 
 import { useUser } from '@/components/useUser';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, orderBy, Timestamp, addDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { saveAs } from 'file-saver';
@@ -75,6 +75,8 @@ export default function BillingPage() {
   const [registrationUrl, setRegistrationUrl] = useState('');
   const [refetchTrigger, setRefetchTrigger] = useState(0);
   const [salesFilter, setSalesFilter] = useState('');
+  const [sortBy, setSortBy] = useState<string>('');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   useEffect(() => {
     if (user) {
@@ -136,18 +138,28 @@ export default function BillingPage() {
 
     const fetchData = async () => {
       setLoading(true);
-      console.log('--- Starting Data Fetch (New Logic) ---');
+      console.log('--- Starting Data Fetch (Updated Logic) ---');
       try {
-        // Step 1: Fetch all documents for the vendor, without sorting.
-        const salesQuery = query(
+        // Step 1: Fetch all documents from both collections for the vendor
+        const customerDetailsQuery = query(
           collection(db, "customer_details"),
           where("vendorId", "==", user.uid)
         );
-        const querySnapshot = await getDocs(salesQuery);
-        console.log(`[1] Found ${querySnapshot.docs.length} total documents in 'customer_details'.`);
+        const salesQuery = query(
+          collection(db, "sales"),
+          where("vendorId", "==", user.uid)
+        );
+        
+        const [customerDetailsSnap, salesSnap] = await Promise.all([
+          getDocs(customerDetailsQuery),
+          getDocs(salesQuery)
+        ]);
+        
+        console.log(`[1] Found ${customerDetailsSnap.docs.length} documents in 'customer_details' and ${salesSnap.docs.length} documents in 'sales'.`);
 
-        // Step 2: Filter for documents that are actual sales.
-        const saleDocuments = querySnapshot.docs.filter(doc => {
+        // Step 2: Combine and filter for documents that are actual sales
+        const allDocuments = [...customerDetailsSnap.docs, ...salesSnap.docs];
+        const saleDocuments = allDocuments.filter(doc => {
             const data = doc.data();
             // A real sale must have a 'purchaseId' or 'purchaseRefId'.
             return data.purchaseId || data.purchaseRefId;
@@ -234,6 +246,64 @@ export default function BillingPage() {
     fetchData();
   }, [user, refetchTrigger]);
 
+  // Filtered and sorted sales
+  const filteredAndSortedSales = useMemo(() => {
+    let filtered = sales;
+
+    // Apply search filter
+    if (salesFilter) {
+      const filterLower = salesFilter.toLowerCase();
+      filtered = filtered.filter(sale => 
+        sale.customerName.toLowerCase().includes(filterLower) ||
+        sale.customerPhone.toLowerCase().includes(filterLower) ||
+        sale.purchaseRefId.toLowerCase().includes(filterLower)
+      );
+    }
+
+    // Apply sorting
+    if (sortBy) {
+      filtered = filtered.sort((a, b) => {
+        let aValue: any;
+        let bValue: any;
+
+        switch (sortBy) {
+          case 'orderId':
+            aValue = (a.purchaseRefId || '').toLowerCase();
+            bValue = (b.purchaseRefId || '').toLowerCase();
+            break;
+          case 'customer':
+            aValue = (a.customerName || '').toLowerCase();
+            bValue = (b.customerName || '').toLowerCase();
+            break;
+          case 'items':
+            aValue = a.items.length;
+            bValue = b.items.length;
+            break;
+          case 'total':
+            aValue = a.total;
+            bValue = b.total;
+            break;
+          case 'payment':
+            aValue = (a.paymentMethod || '').toLowerCase();
+            bValue = (b.paymentMethod || '').toLowerCase();
+            break;
+          case 'date':
+            aValue = a.timestamp?.seconds || 0;
+            bValue = b.timestamp?.seconds || 0;
+            break;
+          default:
+            return 0;
+        }
+
+        if (aValue < bValue) return sortDir === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [sales, salesFilter, sortBy, sortDir]);
+
   const onCustomerAdded = () => {
     setRefetchTrigger(t => t + 1);
   };
@@ -257,6 +327,21 @@ export default function BillingPage() {
       (sale.purchaseRefId && sale.purchaseRefId.toLowerCase().includes(search))
     );
   });
+
+  // Calculate total unique customers (including guests)
+  const totalUniqueCustomers = new Set(
+    sales
+      .map(sale => sale.customerPhone)
+      .filter(phone => phone && phone !== 'N/A')
+  ).size;
+
+  // Calculate registered vs guest customers
+  const registeredCustomerPhones = new Set(customers.map(c => c.phone));
+  const guestCustomerPhones = new Set(
+    sales
+      .map(sale => sale.customerPhone)
+      .filter(phone => phone && phone !== 'N/A' && !registeredCustomerPhones.has(phone))
+  );
 
   // Date format: DD/MMM/YYYY, always two digits for day
   const formatDate = (timestamp: Timestamp | undefined) => {
@@ -313,7 +398,7 @@ export default function BillingPage() {
         <div className="flex space-x-1 bg-neutral-100 p-1 rounded-lg mb-6">
           {[
             { id: 'sales', label: 'Sales History', count: filteredSales.length },
-            { id: 'customers', label: 'Customers', count: customers.length }
+            { id: 'customers', label: 'Customers', count: totalUniqueCustomers }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -356,22 +441,113 @@ export default function BillingPage() {
                 </div>
               </div>
               
-              {filteredSales.length > 0 ? (
+              {/* Sort Status */}
+              {sortBy && (
+                <div className="flex items-center gap-2 text-sm text-neutral-600 mb-4">
+                  <span>Sorted by: <strong>{sortBy === 'orderId' ? 'Order ID' : sortBy === 'customer' ? 'Customer' : sortBy === 'items' ? 'Items' : sortBy === 'total' ? 'Total' : sortBy === 'payment' ? 'Payment' : sortBy === 'date' ? 'Date' : sortBy}</strong> ({sortDir === 'asc' ? 'A-Z' : 'Z-A'})</span>
+                  <button 
+                    onClick={() => { setSortBy(''); setSortDir('asc'); }}
+                    className="text-primary-700 hover:text-primary-800 underline"
+                  >
+                    Clear Sort
+                  </button>
+                </div>
+              )}
+
+              {filteredAndSortedSales.length > 0 ? (
                 <div className="overflow-x-auto">
                   {/* Desktop Table */}
                   <table className="min-w-full divide-y divide-neutral-200 hidden md:table">
                     <thead className="bg-neutral-50">
                       <tr>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Order ID</th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Customer</th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Items</th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Total</th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Payment</th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Date</th>
+                        <th 
+                          scope="col" 
+                          className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:bg-neutral-100 select-none"
+                          onClick={() => {
+                            if (sortBy === 'orderId') {
+                              setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                            } else {
+                              setSortBy('orderId');
+                              setSortDir('asc');
+                            }
+                          }}
+                        >
+                          Order ID {sortBy === 'orderId' && (sortDir === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th 
+                          scope="col" 
+                          className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:bg-neutral-100 select-none"
+                          onClick={() => {
+                            if (sortBy === 'customer') {
+                              setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                            } else {
+                              setSortBy('customer');
+                              setSortDir('asc');
+                            }
+                          }}
+                        >
+                          Customer {sortBy === 'customer' && (sortDir === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th 
+                          scope="col" 
+                          className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:bg-neutral-100 select-none"
+                          onClick={() => {
+                            if (sortBy === 'items') {
+                              setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                            } else {
+                              setSortBy('items');
+                              setSortDir('asc');
+                            }
+                          }}
+                        >
+                          Items {sortBy === 'items' && (sortDir === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th 
+                          scope="col" 
+                          className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:bg-neutral-100 select-none"
+                          onClick={() => {
+                            if (sortBy === 'total') {
+                              setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                            } else {
+                              setSortBy('total');
+                              setSortDir('asc');
+                            }
+                          }}
+                        >
+                          Total {sortBy === 'total' && (sortDir === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th 
+                          scope="col" 
+                          className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:bg-neutral-100 select-none"
+                          onClick={() => {
+                            if (sortBy === 'payment') {
+                              setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                            } else {
+                              setSortBy('payment');
+                              setSortDir('asc');
+                            }
+                          }}
+                        >
+                          Payment {sortBy === 'payment' && (sortDir === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th 
+                          scope="col" 
+                          className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:bg-neutral-100 select-none"
+                          onClick={() => {
+                            if (sortBy === 'date') {
+                              setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                            } else {
+                              setSortBy('date');
+                              setSortDir('asc');
+                            }
+                          }}
+                        >
+                          Date {sortBy === 'date' && (sortDir === 'asc' ? '↑' : '↓')}
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-neutral-200">
-                      {filteredSales.map((sale) => (
+                      {filteredAndSortedSales.map((sale) => (
                         <tr key={sale.id} className="hover:bg-neutral-50">
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-neutral-900">{sale.purchaseRefId}</td>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -395,7 +571,7 @@ export default function BillingPage() {
                   
                   {/* Mobile Cards */}
                   <div className="md:hidden space-y-4">
-                    {filteredSales.map((sale) => (
+                    {filteredAndSortedSales.map((sale) => (
                       <div key={sale.id} className="border border-neutral-200 rounded-lg p-4">
                         <div className="flex justify-between items-start mb-2">
                           <div>
@@ -468,6 +644,25 @@ export default function BillingPage() {
                 </div>
               </div>
               <div className="overflow-x-auto">
+              {/* Customer Breakdown */}
+              <div className="mb-6 p-4 bg-neutral-50 rounded-lg">
+                <h3 className="text-sm font-semibold text-neutral-900 mb-3">Customer Overview</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-neutral-200">
+                    <span className="text-sm font-medium text-neutral-700">Registered Customers</span>
+                    <span className="font-semibold text-neutral-900">{customers.length}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-neutral-200">
+                    <span className="text-sm font-medium text-neutral-700">Guest Customers</span>
+                    <span className="font-semibold text-neutral-900">{guestCustomerPhones.size}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-neutral-200">
+                    <span className="text-sm font-medium text-neutral-700">Total Unique</span>
+                    <span className="font-semibold text-neutral-900">{totalUniqueCustomers}</span>
+                  </div>
+                </div>
+              </div>
+              
               {customers.length > 0 ? (
                 <div>
                   {/* Desktop Table */}
